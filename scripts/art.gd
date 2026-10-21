@@ -568,9 +568,9 @@ func pigeon(look: int, t: float, flying: float) -> void:
 const RICKSHAW_BODY := [Vector2(-1.32, 0.32), Vector2(0.95, 0.32), Vector2(1.3, 0.36), Vector2(1.42, 0.55),
 	Vector2(1.36, 0.82), Vector2(1.12, 1.02), Vector2(0.92, 1.05), Vector2(0.86, 0.9), Vector2(-1.25, 0.9),
 	Vector2(-1.36, 0.75)]
-const RICKSHAW_HOOD := [Vector2(1.04, 1.12), Vector2(0.86, 1.62), Vector2(0.6, 1.76), Vector2(-0.2, 1.8),
-	Vector2(-0.9, 1.76), Vector2(-1.25, 1.62), Vector2(-1.38, 1.3), Vector2(-1.36, 0.9), Vector2(-1.18, 0.9),
-	Vector2(-1.18, 1.5), Vector2(-0.95, 1.62), Vector2(0.62, 1.62), Vector2(0.86, 1.08)]
+const RICKSHAW_HOOD := [Vector2(1.06, 1.1), Vector2(0.92, 1.9), Vector2(0.62, 2.04), Vector2(-0.2, 2.08),
+	Vector2(-0.9, 2.04), Vector2(-1.28, 1.9), Vector2(-1.4, 1.4), Vector2(-1.38, 0.9), Vector2(-1.2, 0.9),
+	Vector2(-1.2, 1.62), Vector2(-0.95, 1.86), Vector2(0.6, 1.86), Vector2(0.82, 1.8), Vector2(0.9, 1.08)]
 
 
 func rickshaw(x: float, d: float, dir: float, look: int, t: float) -> void:
@@ -602,19 +602,6 @@ func rickshaw(x: float, d: float, dir: float, look: int, t: float) -> void:
 	_fill(PackedVector2Array([_rp(Vector2(-1.2, 0.9) + up, -1.0), _rp(Vector2(0.86, 0.9) + up, -1.0),
 		_rp(Vector2(0.86, 0.9) + up, 1.0), _rp(Vector2(-1.2, 0.9) + up, 1.0)]), body.darkened(0.35))
 	ink = save_ink
-	# Inside: the back bench with two passengers, the driver at the bar.
-	pen(_rp(Vector2(0.0, 0.0), 0.0), s, 0.0, dir)
-	rect(-1.15, 0.9 + bounce, -0.35, 1.15 + bounce, Color(0.55, 0.12, 0.15))
-	for i in 2:
-		var px := -0.95 + i * 0.4
-		poly([Vector2(px - 0.15, 1.0), Vector2(px + 0.15, 1.0), Vector2(px + 0.13, 1.38), Vector2(px - 0.13, 1.38)],
-			[Color(0.85, 0.85, 0.8), Color(0.6, 0.3, 0.35)][(i + look) % 2])
-		circle(px, 1.5 + bounce, 0.12, [SKIN, SKIN_DARK][(i + look) % 2])
-	poly([Vector2(0.18, 1.0), Vector2(0.48, 1.0), Vector2(0.46, 1.36), Vector2(0.2, 1.36)], Color(0.9, 0.9, 0.86))
-	circle(0.34, 1.5 + bounce, 0.13, SKIN)
-	line(0.24, 1.6 + bounce, 0.44, 1.6 + bounce, 0.05, Color(0.12, 0.1, 0.1))
-	limb(Vector2(0.42, 1.28), Vector2(0.72, 1.18), 0.07, SKIN)
-	line(0.68, 1.12, 0.8, 1.24, 0.035, Color(0.2, 0.2, 0.2))
 	# The hood's roof, over everyone's heads.
 	ink = 0.0
 	for i in range(0, 6):
@@ -625,14 +612,26 @@ func rickshaw(x: float, d: float, dir: float, look: int, t: float) -> void:
 	# Near side: body, hood frame, windscreen.
 	_side(RICKSHAW_BODY, -1.0, up, body)
 	_side(RICKSHAW_HOOD, -1.0, up, hood)
-	_fill(PackedVector2Array([_rp(Vector2(1.02, 1.1) + up, -0.9), _rp(Vector2(0.88, 1.58) + up, -0.9),
-		_rp(Vector2(0.88, 1.58) + up, 0.9), _rp(Vector2(1.02, 1.1) + up, 0.9)]), Color(0.6, 0.78, 0.88, 0.7))
+	_fill(PackedVector2Array([_rp(Vector2(1.02, 1.1) + up, -0.9), _rp(Vector2(0.88, 1.82) + up, -0.9),
+		_rp(Vector2(0.88, 1.82) + up, 0.9), _rp(Vector2(1.02, 1.1) + up, 0.9)]), Color(0.6, 0.78, 0.88, 0.55))
+	# Inside, seen through the open side (drawn after the near panel, which
+	# only covers them below the seat line):
+	# two passengers on the back bench, the driver up front at the handlebar.
+	pen(_rp(Vector2(0.0, 0.0), -0.75), s, 0.0, dir)
+	rect(-1.15, 0.88 + bounce, -0.3, 1.02 + bounce, Color(0.55, 0.12, 0.15))
+	rect(-1.18, 1.0 + bounce, -1.08, 1.35 + bounce, Color(0.45, 0.1, 0.12))
+	for i in 2:
+		var px := -0.9 + i * 0.38
+		_rider_seated(Vector2(px, 1.0 + bounce), look + i * 3, i == 1 and look % 2 == 0)
+	_rider_seated(Vector2(0.4, 1.0 + bounce), look + 7, false, true)
+	limb(Vector2(0.5, 1.22 + bounce), Vector2(0.74, 1.16 + bounce), 0.06, SKIN)
+	line(0.7, 1.08 + bounce, 0.8, 1.24 + bounce, 0.035, Color(0.2, 0.2, 0.2))
 	pen(_rp(Vector2(0.0, 0.0), -1.0), s, 0.0, dir)
 	ink = 0.0
 	line(-1.2, 0.62 + bounce, 0.9, 0.62 + bounce, 0.035, CHROME)
 	for i in 4:
 		var sx := -1.0 + i * 0.5
-		line(sx, 1.66 + bounce, sx + 0.02, 1.78 + bounce, 0.01, Color(0.3, 0.3, 0.32))
+		line(sx, 1.9 + bounce, sx + 0.02, 2.02 + bounce, 0.01, Color(0.3, 0.3, 0.32))
 	ink = save_ink
 	_flower(-0.75, 0.47 + bounce, 0.1, Color(1, 0.3, 0.5))
 	_flower(0.35, 0.47 + bounce, 0.1, Color(1, 1, 1))
@@ -641,7 +640,7 @@ func rickshaw(x: float, d: float, dir: float, look: int, t: float) -> void:
 	circle(-1.33, 0.52 + bounce, 0.04, Color(1, 0.2, 0.15))
 	for i in 9:
 		var tx := -1.15 + i * 0.22
-		poly([Vector2(tx, 1.62 + bounce), Vector2(tx + 0.11, 1.62 + bounce), Vector2(tx + 0.055, 1.49 + bounce)],
+		poly([Vector2(tx, 1.86 + bounce), Vector2(tx + 0.11, 1.86 + bounce), Vector2(tx + 0.055, 1.76 + bounce)],
 			[Color(1, 0.2, 0.3), Color(1, 0.85, 0.1), Color(0.2, 0.8, 0.4)][i % 3])
 	_wheel(-0.85, 0.22, 0.22, -x * dir / 0.22)
 	# Headlight on the very front of the nose.
@@ -651,6 +650,33 @@ func rickshaw(x: float, d: float, dir: float, look: int, t: float) -> void:
 
 
 var _rk := [0.0, 0.0, 1.0]     # the rickshaw being drawn: x, d, dir
+
+
+## Someone sitting, seen from the side, facing forward (pen frame). seat is
+## where they sit; aunty adds a dupatta; driver adds a cap.
+func _rider_seated(seat: Vector2, look: int, aunty := false, driver := false) -> void:
+	var cloth: Color = [Color(0.92, 0.92, 0.88), Color(0.55, 0.72, 0.88), Color(0.72, 0.58, 0.42),
+		Color(0.85, 0.5, 0.55), Color(0.45, 0.5, 0.45)][look % 5]
+	var skin := SKIN if look % 3 != 0 else SKIN_DARK
+	# Thigh forward, torso up, a little hunch.
+	limb(seat + Vector2(0.0, 0.04), seat + Vector2(0.2, 0.05), 0.11, cloth.darkened(0.12))
+	poly([seat + Vector2(-0.1, 0.0), seat + Vector2(0.09, 0.0), seat + Vector2(0.07, 0.3), seat + Vector2(-0.08, 0.3)], cloth)
+	limb(seat + Vector2(0.0, 0.26), seat + Vector2(0.14, 0.12), 0.06, cloth.darkened(0.05))
+	circle(seat.x + 0.15, seat.y + 0.11, 0.035, skin)
+	var hd := seat + Vector2(0.01, 0.4)
+	circle(hd.x, hd.y, 0.095, skin)
+	circle(hd.x - 0.05, hd.y, 0.025, skin.darkened(0.15))                  # ear
+	circle(hd.x + 0.05, hd.y + 0.015, 0.012, Color(0.08, 0.06, 0.06))      # eye
+	if aunty:
+		var dup := Color(0.95, 0.5, 0.2) if look % 2 == 0 else Color(0.3, 0.65, 0.4)
+		poly([hd + Vector2(-0.12, -0.12), hd + Vector2(-0.11, 0.06), hd + Vector2(-0.02, 0.12), hd + Vector2(0.07, 0.1),
+			hd + Vector2(0.04, 0.02), hd + Vector2(-0.04, -0.02), hd + Vector2(-0.06, -0.2)], dup)
+	else:
+		poly([hd + Vector2(-0.1, 0.02), hd + Vector2(-0.07, 0.1), hd + Vector2(0.05, 0.1), hd + Vector2(0.09, 0.05),
+			hd + Vector2(0.0, 0.05)], HAIR)
+		line(hd.x + 0.04, hd.y - 0.035, hd.x + 0.1, hd.y - 0.03, 0.022, HAIR)  # moustache
+	if driver:
+		poly([hd + Vector2(-0.1, 0.06), hd + Vector2(0.1, 0.06), hd + Vector2(0.08, 0.12), hd + Vector2(-0.08, 0.12)], Color(0.9, 0.9, 0.9))
 
 
 ## Half-width at a point along the rickshaw: full across the cabin, narrowing

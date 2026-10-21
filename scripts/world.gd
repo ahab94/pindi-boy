@@ -23,8 +23,8 @@ const END_CLEAR := 30.0
 const KINDS := {
 	"cart": {"len": 2.3, "dep": 1.3, "h": 1.15, "v": 0.6, "solid": true, "label": "THELA", "gap": 10.0},
 	"eggs": {"len": 2.3, "dep": 1.3, "h": 1.4, "v": 0.5, "solid": true, "label": "ANDAY WALA BURGER", "gap": 10.0},
-	"rickshaw": {"len": 2.7, "dep": 1.4, "h": 1.8, "v": 5.5, "solid": true, "label": "RICKSHAW", "gap": 18.0},
-	"wrongway": {"len": 2.7, "dep": 1.4, "h": 1.8, "v": -5.0, "solid": true, "label": "ULTA RICKSHAW", "gap": 24.0},
+	"rickshaw": {"len": 2.7, "dep": 1.2, "h": 2.05, "v": 5.5, "solid": true, "label": "RICKSHAW", "gap": 18.0},
+	"wrongway": {"len": 2.7, "dep": 1.2, "h": 2.05, "v": -5.0, "solid": true, "label": "ULTA RICKSHAW", "gap": 24.0},
 	"wagon": {"len": 4.4, "dep": 1.8, "h": 2.0, "v": 7.0, "solid": true, "label": "WAGON", "gap": 22.0},
 	"bus": {"len": 10.5, "dep": 2.4, "h": 3.3, "v": 4.5, "solid": true, "label": "BUS", "gap": 30.0},
 	"baraat": {"len": 9.0, "dep": 5.0, "h": 2.6, "v": 1.4, "solid": true, "label": "BARAAT", "gap": 40.0},
