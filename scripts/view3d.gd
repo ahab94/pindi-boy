@@ -16,6 +16,7 @@ const Ride := preload("res://scripts/ride.gd")
 const Street := preload("res://scripts/street3d.gd")
 const Actors := preload("res://scripts/actors3d.gd")
 const Overlay := preload("res://scripts/overlay3d.gd")
+const Fx := preload("res://scripts/fx3d.gd")
 
 const SKIES := {
 	# sky top, horizon, sun colour, sun energy, ambient, sun pitch (deg)
@@ -23,8 +24,8 @@ const SKIES := {
 	"noon": [Color(0.32, 0.58, 0.95), Color(0.82, 0.9, 0.98), Color(1, 1, 0.97), 1.35, 0.6, -60.0],
 	"golden": [Color(0.42, 0.52, 0.85), Color(1.0, 0.74, 0.46), Color(1.0, 0.8, 0.55), 1.3, 0.5, -24.0],
 	"rain": [Color(0.42, 0.46, 0.52), Color(0.66, 0.69, 0.74), Color(0.82, 0.85, 0.9), 0.55, 0.7, -55.0],
-	"dusk": [Color(0.3, 0.24, 0.52), Color(0.98, 0.56, 0.42), Color(1.0, 0.62, 0.45), 0.95, 0.5, -16.0],
-	"evening": [Color(0.12, 0.12, 0.3), Color(0.8, 0.44, 0.38), Color(0.95, 0.55, 0.45), 0.6, 0.45, -12.0],
+	"dusk": [Color(0.34, 0.32, 0.6), Color(0.98, 0.7, 0.55), Color(1.0, 0.78, 0.62), 0.95, 0.6, -20.0],
+	"evening": [Color(0.18, 0.2, 0.4), Color(0.85, 0.6, 0.55), Color(0.95, 0.72, 0.6), 0.75, 0.6, -16.0],
 }
 
 var ride
@@ -34,6 +35,8 @@ var camera: Camera3D
 var _street: Street
 var _actors: Actors
 var _overlay: Overlay
+var _fx: Fx
+var _rain: GPUParticles3D
 var _env: WorldEnvironment
 var _sun: DirectionalLight3D
 var _built_for = null
@@ -63,6 +66,9 @@ func _ready() -> void:
 	add_child(_street)
 	_actors = Actors.new()
 	add_child(_actors)
+	_fx = Fx.new()
+	_fx.view = self
+	add_child(_fx)
 	var layer := CanvasLayer.new()
 	layer.layer = 3
 	add_child(layer)
@@ -74,6 +80,8 @@ func _ready() -> void:
 func reset() -> void:
 	_cam_x = -999.0
 	shake = 0.0
+	if _fx:
+		_fx.reset()
 
 
 func _process(delta: float) -> void:
@@ -84,7 +92,11 @@ func _process(delta: float) -> void:
 	var size := get_viewport().get_visible_rect().size
 	portrait = size.y > size.x
 	_actors.sync(ride, delta)
+	_fx.ride = ride
+	_fx.step(delta)
 	_follow_camera(delta)
+	if _rain:
+		_rain.position = Vector3(_cam_x + 4.0, 9.0, -4.0)
 	_overlay.ride = ride
 	_overlay.queue_redraw()
 
@@ -127,6 +139,39 @@ func _build() -> void:
 	_sun.rotation_degrees = Vector3(float(sky[5]), -35.0, 0.0)
 	_street.build(ride, Color(1, 1, 1))
 	_actors.build(ride)
+	_fx.reset()
+	_make_rain(ride.level.get("rain", false))
+
+
+## Rain: GPU particles falling in a box that follows the camera.
+func _make_rain(on: bool) -> void:
+	if _rain:
+		_rain.queue_free()
+		_rain = null
+	if not on:
+		return
+	_rain = GPUParticles3D.new()
+	_rain.amount = 900
+	_rain.lifetime = 1.2
+	_rain.visibility_aabb = AABB(Vector3(-30, -12, -20), Vector3(60, 24, 40))
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	pm.emission_box_extents = Vector3(22, 0.5, 12)
+	pm.direction = Vector3(-0.15, -1, 0)
+	pm.spread = 3.0
+	pm.initial_velocity_min = 14.0
+	pm.initial_velocity_max = 18.0
+	pm.gravity = Vector3(0, -9.8, 0)
+	_rain.process_material = pm
+	var drop := BoxMesh.new()
+	drop.size = Vector3(0.015, 0.45, 0.015)
+	var dm := StandardMaterial3D.new()
+	dm.albedo_color = Color(0.75, 0.82, 0.95, 0.45)
+	dm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	dm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	drop.material = dm
+	_rain.draw_pass_1 = drop
+	add_child(_rain)
 
 
 ## The camera trails Shani along the road: it sits over the near footpath,
@@ -140,17 +185,17 @@ func _follow_camera(delta: float) -> void:
 		_cam_x = x
 	_cam_x = lerpf(_cam_x, x + lead, minf(1.0, delta * 5.0))
 	_cam_lift = lerpf(_cam_lift, maxf(0.0, float(ride.h) - 0.5) * 0.6, minf(1.0, delta * 4.0))
-	var back := 10.5 / zoom
-	var high := 7.2 / zoom
-	var ahead := 4.5
+	var back := 7.6 / zoom
+	var high := 5.4 / zoom
+	var ahead := 3.2
 	if portrait:
-		camera.fov = 62.0
-		back = 11.0 / zoom
-		high = 7.0 / zoom
-		ahead = 2.0
+		camera.fov = 52.0
+		back = 7.0 / zoom
+		high = 6.8 / zoom
+		ahead = 1.2
 	else:
 		camera.fov = 36.0
-	var target := Vector3(_cam_x + ahead, 0.9 + _cam_lift, -d * 0.3 - 4.0)
+	var target := Vector3(_cam_x + ahead, (0.9 if not portrait else 1.6) + _cam_lift, -d * 0.3 - (4.0 if not portrait else 5.2))
 	var pos := Vector3(_cam_x + ahead - 2.0, high + _cam_lift, back)
 	if shake > 0.0:
 		pos += Vector3(sin(ride.t * 70.0), cos(ride.t * 63.0), 0.0) * shake * 0.01

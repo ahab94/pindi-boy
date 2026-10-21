@@ -142,29 +142,41 @@ static func _sp(theta: float, phi: float) -> Vector3:
 func extrude(profile: Array, zc: float, half: float, taper: Callable, col: Color, side_col = null, cap := true) -> void:
 	var n := profile.size()
 	var sc: Color = side_col if side_col != null else col
+	# Which way round the profile goes decides which side of each edge is out.
+	var area := 0.0
+	for i in n:
+		var p: Vector2 = profile[i]
+		var q: Vector2 = profile[(i + 1) % n]
+		area += p.x * q.y - q.x * p.y
+	var ccw := area > 0.0
 	for i in n:
 		var p: Vector2 = profile[i]
 		var q: Vector2 = profile[(i + 1) % n]
 		var hp: float = half * float(taper.call(p.x))
 		var hq: float = half * float(taper.call(q.x))
-		quad(Vector3(p.x, p.y, zc + hp), Vector3(q.x, q.y, zc + hq), Vector3(q.x, q.y, zc - hq), Vector3(p.x, p.y, zc - hp), col)
+		var e := q - p
+		var out2 := Vector2(e.y, -e.x) if ccw else Vector2(-e.y, e.x)
+		var nrm := Vector3(out2.x, out2.y, 0.0).normalized()
+		var a := Vector3(p.x, p.y, zc + hp)
+		var b := Vector3(q.x, q.y, zc + hq)
+		var c := Vector3(q.x, q.y, zc - hq)
+		var d := Vector3(p.x, p.y, zc - hp)
+		_tri_n([a, b, c], [nrm, nrm, nrm], col)
+		_tri_n([a, c, d], [nrm, nrm, nrm], col)
 	if cap:
-		# Side faces: fan triangulation of the profile (it must be convex-ish
-		# or triangulated properly, so use Godot's triangulator).
+		# Side faces: Godot's triangulator handles concave profiles.
 		var poly := PackedVector2Array()
 		for p in profile:
 			poly.append(p)
 		var tris := Geometry2D.triangulate_polygon(poly)
 		for side in [1.0, -1.0]:
+			var nz := Vector3(0, 0, side)
 			for t in range(0, tris.size(), 3):
 				var pts: Array = []
 				for k in 3:
 					var p: Vector2 = profile[tris[t + k]]
 					pts.append(Vector3(p.x, p.y, zc + side * half * float(taper.call(p.x))))
-				if side > 0.0:
-					tri(pts[0], pts[2], pts[1], sc)
-				else:
-					tri(pts[0], pts[1], pts[2], sc.darkened(0.2))
+				_tri_n(pts, [nz, nz, nz], sc if side > 0.0 else sc.darkened(0.15))
 
 
 ## The shared material for builder meshes: vertex colours, both sides.

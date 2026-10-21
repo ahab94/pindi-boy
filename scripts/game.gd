@@ -49,8 +49,8 @@ func _ready() -> void:
 		get_window().size = Vector2i(720, 1280)
 	_fit_screen()
 	get_tree().root.size_changed.connect(_fit_screen)
-	# The 3D street by default; --flat brings back the drawn 2D view.
-	view = View.new() if _flags.has("flat") else View3D.new()
+	# The drawn 2D view; --3d tries the experimental 3D street instead.
+	view = View3D.new() if _flags.has("3d") else View.new()
 	add_child(view)
 	sound = Sound.new()
 	sound.music_on = not _flags.has("no-music")
@@ -195,6 +195,10 @@ func _physics_process(delta: float) -> void:
 		_end_timer -= delta
 		if _end_timer <= 0.0:
 			_finish()
+	if _flags.has("perf") and fmod(_sim_time, 2.0) < delta:
+		print("PERF fps=%d draw_calls=%d objects=%d" % [Engine.get_frames_per_second(),
+			RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
+			RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_OBJECTS_IN_FRAME)])
 	if _flags.has("trace") and fmod(_sim_time, 0.5) < delta:
 		print("TRACE t=%.1f x=%.0f d=%.2f v=%.1f pitch=%.0f h=%.2f views=%d pot=%.0f x%d crashes=%d" % [
 			ride.t, ride.x, ride.d, ride.v, ride.pitch, ride.h, ride.views, ride.pot, ride.mult, ride.crashes])
