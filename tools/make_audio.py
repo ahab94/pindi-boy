@@ -534,19 +534,99 @@ def sfx():
 
 
 # --- Music -------------------------------------------------------------------
-# Ride: bhangra meets trap, 128 BPM in A minor. Dhol chaal over an 808-style
-# sliding bass, claps, hi-hat rolls, a tumbi riff and a buzzy synth hook.
+# Pothohari flavour: a lilting 6/8 dhol (dadra feel) instead of straight
+# bhangra, chimta jingles, an algoza (double flute) lead handing over to a
+# shehnai, a harmonium drone, all on a Pahari-scale melody in G (Sa Re Ga Pa
+# Dha, the hill mode of the Pothohar plateau). A soft 808 bass underneath
+# keeps it sounding like a 2020s Short rather than a museum recording.
 
-BPM = 128
-BEAT = 60 / BPM
-BAR = 4 * BEAT
-S16 = BEAT / 4
-BASS = [("A1", 0, 3), ("A1", 3, 1), ("C2", 4, 2), ("G1", 6, 2),           # beats within 2 bars
-        ("F1", 8, 3), ("F1", 11, 1), ("E1", 12, 2), ("G1", 14, 2)]
-TUMBI = [(0, "E5"), (1, "E5"), (3, "A5"), (4, "G5"), (6, "E5"), (7, "D5"),
-         (8, "E5"), (10, "C5"), (11, "D5"), (12, "E5"), (14, "A4")]       # 8th-note slots, 2 bars
-HOOK = [(0, "A4", 1.5), (1.5, "C5", 0.5), (2, "E5", 1), (3, "D5", 1), (4, "C5", 1.5), (5.5, "B4", 0.5),
-        (6, "A4", 2), (8, "G4", 1.5), (9.5, "A4", 0.5), (10, "C5", 1), (11, "E5", 1), (12, "D5", 4)]
+BPM = 104                  # dotted-quarter beats: two per 6/8 bar
+EIGHTH = 60 / BPM / 3
+BAR = 6 * EIGHTH
+# (note, eighths) per bar: 8 bars of Pahari tune.
+TUNE = [
+    [("G4", 3), ("A4", 1), ("B4", 2)],
+    [("D5", 3), ("B4", 1), ("A4", 2)],
+    [("G4", 2), ("E4", 2), ("D4", 2)],
+    [("E4", 3), ("G4", 3)],
+    [("B4", 2), ("D5", 2), ("E5", 2)],
+    [("D5", 3), ("B4", 1), ("A4", 1), ("G4", 1)],
+    [("A4", 2), ("B4", 1), ("A4", 1), ("G4", 1), ("E4", 1)],
+    [("G4", 6)],
+]
+ROOTS = ["G1", "D2", "E2", "C2", "G1", "D2", "C2", "G1"]
+
+
+def chimta(vol=0.12, seed=1):
+    """Fire tongs with jingles: a metallic clack and a short shimmer."""
+    return layer(noise(0.06, vol, decay=0.012, highpass=4000, seed=seed),
+                 tone(3100, 0.12, "square", vol * 0.25, decay=0.03),
+                 tone(4650, 0.1, "sine", vol * 0.3, decay=0.04, tremolo=0.6, tremolo_hz=40))
+
+
+def algoza(freq, dur, vol=0.16, from_freq=None):
+    """Two end-blown flutes played together: a breathy, slightly detuned pair
+    of near-sines with a quick vibrato, the second one droning on Sa (G)."""
+    n = int(dur * SR)
+    out = [0.0] * n
+    p1 = p2 = 0.0
+    rng = random.Random(int(freq))
+    lo = 0.0
+    drone = hz("G4")
+    for i in range(n):
+        t = i / SR
+        f = freq
+        if from_freq:
+            g = min(1.0, t / 0.05)
+            f = from_freq + (freq - from_freq) * g
+        f *= 1 + 0.008 * math.sin(TAU * 5.5 * t)
+        p1 = (p1 + f / SR) % 1.0
+        p2 = (p2 + drone * 1.003 / SR) % 1.0
+        breath = rng.uniform(-1, 1)
+        lo += 0.08 * (breath - lo)
+        s = (math.sin(TAU * p1) + 0.18 * math.sin(2 * TAU * p1)) + 0.35 * math.sin(TAU * p2) + 0.25 * lo
+        env = min(1.0, t / 0.03) * min(1.0, (dur - t) / 0.05)
+        out[i] = s * env * vol
+    return out
+
+
+def ride_song():
+    bars = 16
+    tr = Track(bars * BAR, loop=True)
+    for bar in range(bars):
+        t0 = bar * BAR
+        # Dhol in 6/8: dagga on 1 and 4, tilli on the rest, a roll every 4th bar.
+        tr.add(t0, dagga(0.6))
+        tr.add(t0 + 3 * EIGHTH, dagga(0.45))
+        for e in [1, 2, 4, 5]:
+            tr.add(t0 + e * EIGHTH, tilli(0.22 if e in (2, 5) else 0.15, seed=bar * 8 + e))
+        if bar % 4 == 3:
+            for k in range(6):
+                tr.add(t0 + 3 * EIGHTH + k * EIGHTH / 2, tilli(0.18, seed=900 + bar * 8 + k))
+        # Chimta on the off-beats, clap on 4.
+        for e in [2, 5]:
+            tr.add(t0 + e * EIGHTH, chimta(0.13, seed=bar * 6 + e))
+        tr.add(t0 + 3 * EIGHTH, clap(0.12, seed=bar))
+        # Bass and the harmonium drone.
+        root = hz(ROOTS[bar % 8])
+        tr.add(t0, bass808(root, BAR * 0.95, 0.32))
+        tr.add(t0, harmonium([hz("G3"), hz("D4")], BAR * 0.98, 0.045))
+    # Lead: algoza takes the tune first, the shehnai answers an octave up.
+    prev = None
+    for half in range(2):
+        t = half * 8 * BAR
+        for bar_notes in TUNE:
+            for note, eighths in bar_notes:
+                f = hz(note)
+                d = eighths * EIGHTH
+                if half == 0:
+                    tr.add(t, algoza(f, d + 0.02, 0.15, from_freq=prev))
+                else:
+                    tr.add(t, shehnai(f * 2, d + 0.03, 0.13, from_freq=prev * 2 if prev else None))
+                prev = f
+                t += d
+    tr.echo(EIGHTH * 1.5, feedback=0.22, mix=0.12)
+    return tr.buf
 
 
 def bass808(freq, dur, vol=0.5, from_freq=None):
@@ -567,66 +647,28 @@ def bass808(freq, dur, vol=0.5, from_freq=None):
     return out
 
 
-def hook_synth(freq, dur, vol=0.12):
-    return tone(freq, dur, "saw", vol, attack=0.01, release=0.05, lowpass=2400, detune=0.008, tremolo=0.1, tremolo_hz=6)
-
-
-def ride_song():
-    bars = 8
-    tr = Track(bars * BAR, loop=True)
-    for bar in range(bars):
-        t0 = bar * BAR
-        for s16 in [0, 6, 8, 11]:
-            tr.add(t0 + s16 * S16, dagga(0.6))
-        for s16 in [2, 4, 10, 12, 14]:
-            tr.add(t0 + s16 * S16, tilli(0.3, seed=bar * 16 + s16))
-        for b in [1, 3]:
-            tr.add(t0 + b * BEAT, clap(0.2, seed=bar * 4 + b))
-        hats = 16 if bar % 4 != 3 else 12
-        for h in range(hats):
-            tr.add(t0 + h * S16, noise(0.03, 0.06 if h % 2 else 0.1, decay=0.01, highpass=7000, seed=300 + bar * 32 + h))
-        if bar % 4 == 3:   # trap hi-hat roll
-            for h in range(8):
-                tr.add(t0 + 3 * BEAT + h * S16 / 2, noise(0.02, 0.07, decay=0.006, highpass=7000, seed=400 + bar * 8 + h))
-    for rep in range(bars // 2):
-        prev = None
-        for note, start, length in BASS:
-            f = hz(note)
-            tr.add(rep * 2 * BAR + start * BEAT, bass808(f, length * BEAT, 0.42, from_freq=prev))
-            prev = f
-        for slot, note in TUMBI:
-            tr.add(rep * 2 * BAR + slot * BEAT / 2, pluck(hz(note), 0.3, 0.2, decay=0.992, seed=slot + rep * 20))
-    for rep in range(2):
-        if rep == 1:
-            for start, note, length in HOOK:
-                tr.add(4 * BAR + start * BEAT, hook_synth(hz(note), length * BEAT))
-    tr.echo(BEAT * 0.75, feedback=0.22, mix=0.12)
-    return tr.buf
-
-
-# Menu: a laid-back 96 BPM groove: soft dhol, bass, and a rubab-ish pluck.
-MENU_BPM = 96
-MB = 60 / MENU_BPM
-MENU_LINE = [(0, "A4"), (0.5, "C5"), (1, "E5"), (2, "D5"), (2.5, "C5"), (3, "A4"), (4, "G4"), (4.5, "A4"),
-             (5, "C5"), (6, "B4"), (6.5, "G4"), (7, "E4")]
-
-
+# Menu: slow and sung-poetry-like, the way a Pothohari sher is accompanied:
+# harmonium chords, a lone algoza, a soft dhol every bar.
 def menu_song():
-    beats = 16
-    tr = Track(beats * MB, loop=True)
-    for b in range(beats):
-        t = b * MB
-        if b % 4 in (0, 2):
-            tr.add(t, dagga(0.45))
-        tr.add(t + MB / 2, tilli(0.15, seed=500 + b))
-        if b % 4 == 3:
-            tr.add(t + MB * 0.75, tilli(0.12, seed=600 + b))
-    for i, (note, start) in enumerate([("A1", 0), ("F1", 4), ("C2", 8), ("G1", 12)]):
-        tr.add(start * MB, bass808(hz(note), 3.6 * MB, 0.3))
-    for rep in range(2):
-        for start, note in MENU_LINE:
-            tr.add(rep * 8 * MB + start * MB, pluck(hz(note), 1.0, 0.22, decay=0.996, buzz=0.4, seed=int(start * 10) + rep))
-    tr.echo(MB * 0.75, feedback=0.3, mix=0.2)
+    bars = 8
+    slow = 1.6
+    tr = Track(bars * BAR * slow, loop=True)
+    for bar in range(bars):
+        t0 = bar * BAR * slow
+        tr.add(t0, dagga(0.4))
+        tr.add(t0 + 3 * EIGHTH * slow, tilli(0.12, seed=700 + bar))
+        tr.add(t0 + 5 * EIGHTH * slow, chimta(0.06, seed=800 + bar))
+        tr.add(t0, harmonium([hz(ROOTS[bar].replace("1", "3").replace("2", "3")), hz("D4")], BAR * slow * 0.97, 0.06))
+    t = 0.0
+    prev = None
+    for bar_notes in TUNE:
+        for note, eighths in bar_notes:
+            f = hz(note)
+            d = eighths * EIGHTH * slow
+            tr.add(t, algoza(f, d + 0.03, 0.14, from_freq=prev))
+            prev = f
+            t += d
+    tr.echo(EIGHTH * 2, feedback=0.3, mix=0.2)
     return tr.buf
 
 

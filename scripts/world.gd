@@ -22,7 +22,7 @@ const END_CLEAR := 30.0
 ## gap: the clear space world.gd keeps around it when placing.
 const KINDS := {
 	"cart": {"len": 2.3, "dep": 1.3, "h": 1.15, "v": 0.6, "solid": true, "label": "THELA", "gap": 10.0},
-	"eggs": {"len": 2.3, "dep": 1.3, "h": 1.15, "v": 0.5, "solid": true, "label": "ANDAY WALA", "gap": 10.0},
+	"eggs": {"len": 2.3, "dep": 1.3, "h": 1.4, "v": 0.5, "solid": true, "label": "ANDAY WALA BURGER", "gap": 10.0},
 	"rickshaw": {"len": 2.7, "dep": 1.4, "h": 1.8, "v": 5.5, "solid": true, "label": "RICKSHAW", "gap": 18.0},
 	"wrongway": {"len": 2.7, "dep": 1.4, "h": 1.8, "v": -5.0, "solid": true, "label": "ULTA RICKSHAW", "gap": 24.0},
 	"wagon": {"len": 4.4, "dep": 1.8, "h": 2.0, "v": 7.0, "solid": true, "label": "WAGON", "gap": 22.0},
@@ -71,7 +71,9 @@ static func build(level: Dictionary) -> Dictionary:
 	var length: float = level.length
 	var hazards: Array = []
 	for p in level.get("placed", []):
-		hazards.append(make(String(p[1]), float(p[0]), int(p[2]), rng))
+		var h := make(String(p[1]), float(p[0]), int(p[2]), rng)
+		h.parked = p.size() > 3 and bool(p[3])     # a set piece that stays put
+		hazards.append(h)
 	var kinds: Array = level.get("scatter", {}).keys()
 	kinds.sort()   # dictionary order isn't something to rely on for a seed
 	# Place the big, picky things first so they get the room they need.

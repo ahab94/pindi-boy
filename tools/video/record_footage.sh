@@ -42,3 +42,24 @@ ONLY="$*"
 # Note: game time (EVENT t=…) is ride time; the clip starts 3 s earlier
 # (the countdown), and --slowmo stretches big moments, so specs.py reads
 # frame times from the .events "@" stamps instead (see game.gd _report).
+# Shorts (portrait, a little closer in).
+Z=--zoom=1.12
+record p-bus 6 15 --only-placed --place=70:ramp:1:p,84:bus:1:p --aim=ramp $Z
+record p-eggs-fail 4 12 --only-placed --place=45:eggs:1:p --fail=eggs --no-keys $Z
+record p-eggs-win 4 12 --only-placed --place=40:ramp:1:p,47:eggs:1:p --aim=ramp $Z
+record p-pigeons 3 40 $Z
+record p-warden 5 17 --dawdle=6 --no-keys $Z
+record p-chappal 9 26 --no-dodge --no-keys $Z
+record p-dulha 8 63 $Z
+record p-loop 0 14 --loop-at=8 $Z
+record p-fails 6 50 --fail=wrongway+bus+rickshaw+cart+eggs --no-keys $Z
+record p-rain 7 40 $Z
+record p-gali 0 28 $Z
+# Trailer (landscape).
+record l-bus 6 15 --only-placed --place=70:ramp:1:p,84:bus:1:p --aim=ramp
+record l-eggs-win 4 12 --only-placed --place=40:ramp:1:p,47:eggs:1:p --aim=ramp
+record l-pigeons 3 40
+record l-warden 5 17 --dawdle=6 --no-keys
+record l-chappal 9 26 --no-dodge --no-keys
+record l-fails 6 50 --fail=wrongway+bus+rickshaw+cart+eggs --no-keys
+record l-ramp 4 30

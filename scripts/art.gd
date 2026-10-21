@@ -72,6 +72,10 @@ func _fill(out: PackedVector2Array, col: Color) -> void:
 		area += a.x * b.y - b.x * a.y
 	if absf(area) < 1.0:
 		return
+	# A flapping wing or a wind-blown kameez tail can fold over itself, and
+	# Godot can't fill a self-crossing outline: skip those frames' shape.
+	if out.size() > 3 and Geometry2D.triangulate_polygon(out).is_empty():
+		return
 	if shade > 0.0:
 		# Per-vertex colours: Godot blends them across the polygon, which
 		# gives a cheap top-lit gradient.
@@ -658,12 +662,29 @@ func cart(x: float, d: float, eggs: bool, look: int, t: float) -> void:
 	_wheel(0.0, 0.35, 0.35, -x / 0.35)
 	line(-1.1, 0.75, -1.6, 0.95, 0.04, Color(0.45, 0.3, 0.15))
 	if eggs:
-		for row in 4:
-			box(x - 0.9, x + 0.9, d0 + 0.1, d + 0.55, 0.85 + row * 0.07, 0.9 + row * 0.07, Color(0.85, 0.75, 0.55))
+		# The anday wala burger thela: a glass case of buns, a hot tawa with
+		# eggs frying, ketchup and chutney bottles, the gas cylinder below.
+		box(x - 1.1, x + 0.2, d0 + 0.1, d + 0.55, 0.85, 1.35, Color(0.75, 0.85, 0.9, 0.55))
+		pen(P(x, d0 + 0.1, 0.0), s)
+		for i in 3:
+			for j in 2:
+				ellipse(-0.9 + i * 0.35, 0.95 + j * 0.18, 0.15, 0.07, Color(0.92, 0.68, 0.3))
 		pen(P(x, d0, 0.0), s)
-		for i in 9:
-			ellipse(-0.8 + i * 0.2, 1.17, 0.07, 0.09, Color(0.98, 0.95, 0.88))
-		text(0.0, 0.7, "ANDAY", 0.18, Color(1, 1, 0.8))
+		rect(0.2, 0.85, 1.05, 0.92, Color(0.15, 0.15, 0.15))            # the tawa
+		for i in 3:
+			var ex := 0.35 + i * 0.25
+			ellipse(ex, 0.93, 0.11, 0.035, Color(0.98, 0.97, 0.92))
+			circle(ex, 0.94, 0.035, Color(1, 0.75, 0.1))
+		for i in 2:
+			var steam := fmod(t * 0.8 + i * 0.5, 1.0)
+			circle(0.45 + i * 0.3, 1.05 + steam * 0.5, 0.06 + steam * 0.05, Color(1, 1, 1, 0.35 * (1.0 - steam)))
+		rect(0.95, 0.92, 1.03, 1.15, Color(0.85, 0.1, 0.1))               # ketchup
+		rect(0.85, 0.92, 0.92, 1.12, Color(0.2, 0.6, 0.25))               # chutney
+		ellipse(-0.3, 0.32, 0.18, 0.25, Color(0.2, 0.35, 0.75))           # gas cylinder
+		rect(-1.05, 1.55, 1.05, 1.85, Color(0.95, 0.85, 0.15))
+		text(0.0, 1.69, "ANDA SHAMI BURGER", 0.17, Color(0.75, 0.05, 0.05))
+		line(-1.0, 0.85, -1.0, 1.55, 0.03, Color(0.4, 0.3, 0.2))
+		line(1.0, 0.85, 1.0, 1.55, 0.03, Color(0.4, 0.3, 0.2))
 	else:
 		var fruit: Color = [Color(1, 0.55, 0.05), Color(0.95, 0.85, 0.15), Color(0.85, 0.1, 0.15)][look % 3]
 		for row in 3:

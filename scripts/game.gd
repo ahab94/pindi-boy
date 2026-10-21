@@ -112,7 +112,7 @@ func start_level(i: int) -> void:
 	if _flags.has("autopilot") or _flags.has("rookie"):
 		bot = Autopilot.new()
 		bot.rookie = _flags.has("rookie")
-		for key in ["fail", "fail_after", "loop_at", "long", "no_dodge", "dawdle"]:
+		for key in ["fail", "fail_after", "loop_at", "long", "no_dodge", "dawdle", "aim"]:
 			var flag: String = String(key).replace("_", "-")
 			if _flags.has(flag):
 				bot.director[key] = _flags[flag]
@@ -133,7 +133,7 @@ func _level_data(i: int) -> Dictionary:
 		var placed: Array = lvl.get("placed", []).duplicate()
 		for item in String(_flags.place).split(","):
 			var parts := item.split(":")
-			placed.append([float(parts[0]), parts[1], int(parts[2]) if parts.size() > 2 else 1])
+			placed.append([float(parts[0]), parts[1], int(parts[2]) if parts.size() > 2 else 1, parts.size() > 3 and parts[3] == "p"])
 		lvl.placed = placed
 	if _flags.has("tricks"):
 		lvl.tricks = Array(String(_flags.tricks).split("+"))

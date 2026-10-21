@@ -51,7 +51,7 @@ const TRICKS := {
 }
 
 const CRASH_LINES := {
-	"cart": "FRUIT EVERYWHERE", "eggs": "OMELETTE!", "rickshaw": "RICKSHAW 1, SHANI 0",
+	"cart": "FRUIT EVERYWHERE", "eggs": "BUN KABAB BAN GAYA", "rickshaw": "RICKSHAW 1, SHANI 0",
 	"wrongway": "HE WAS ON THE WRONG SIDE!", "wagon": "WAGON WINS", "bus": "THE BUS DIDN'T EVEN NOTICE",
 	"baraat": "GATECRASHED THE BARAAT", "ped": "SORRY UNCLE!", "goats": "BAKRI 1, SHANI 0",
 	"looped": "LOOPED IT!", "bailed": "BAILED!", "backflop": "ACCIDENTAL BACKFLIP", "faceplant": "FACE PLANT",
@@ -416,7 +416,9 @@ func _collide() -> void:
 		if gap < 0.0:
 			match kind:
 				"breaker", "ramp":
-					if not airborne and h < 0.3:
+					# Once per ramp: landing back on it (at a crawl) isn't a new jump.
+					if not airborne and h < 0.3 and not o.hit:
+						o.hit = true
 						_launch(kind)
 				"pothole":
 					if not airborne and not o.hit:
@@ -593,7 +595,7 @@ func _step_world(dt: float) -> void:
 				if o.state == "fly":
 					o.h_fly = float(o.get("h_fly", 0.0)) + dt * 5.0
 			_:
-				o.v = float(k.get("v", 0.0))   # back to its own pace, unless...
+				o.v = 0.0 if o.get("parked", false) else float(k.get("v", 0.0))   # its own pace, unless...
 				if float(o.v) != 0.0:
 					_follow(o)
 					o.x = float(o.x) + float(o.v) * dt

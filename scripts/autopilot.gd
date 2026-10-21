@@ -83,6 +83,21 @@ func _direct(r, input: Dictionary) -> void:
 				if dx < 12.0:
 					input.lift = false
 				break
+	if director.has("aim") and r.airborne:
+		input.lane = 0.0           # hold the line: the point is to fly OVER it
+		lane_target = float(r.d)
+	if director.has("aim"):
+		# Commit to the next ramp whatever is parked behind it, flat out.
+		for o in r.hazards:
+			var dx: float = float(o.x) - float(r.x)
+			if o.kind == director.aim and dx > 0.5 and dx < 60.0 and not o.hit:
+				lane_target = float(o.d)
+				input.lane = clampf((lane_target - float(r.d)) * 1.6 - float(r.vd) * 0.3, -1.0, 1.0)
+				input.brake = false
+				input.gas = true
+				input.lift = false
+				input.trick = ""
+				break
 	if director.has("loop_at") and t > float(director.loop_at) and int(r.crashes) == 0:
 		input.lift = true
 		input.trick = ""
@@ -91,6 +106,7 @@ func _direct(r, input: Dictionary) -> void:
 		input.gas = false
 		input.brake = float(r.v) > 5.0
 		input.lift = false
+		input.pop = false         # a pataakha would knock his cap off and stop him
 
 
 # ---------------------------------------------------------------- lanes

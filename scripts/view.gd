@@ -213,7 +213,7 @@ func _read_events() -> void:
 				elif cause == "eggs":
 					for k in 18:
 						_spawn(Vector3(x + 1.5, d, 1.0), Vector3(randf_range(-3, 6), randf_range(-1.5, 1.5), randf_range(2, 7)),
-							1.6, Color(1, 0.85, 0.1) if k % 2 == 0 else Color(1, 1, 0.95), 0.12, "fruit")
+							1.6, [Color(1, 0.85, 0.1), Color(1, 1, 0.95), Color(0.92, 0.68, 0.3)][k % 3], 0.12, "fruit")
 			"land":
 				shake = maxf(shake, 3.0)
 				for k in 8:
