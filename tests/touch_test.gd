@@ -41,7 +41,8 @@ func _no_overlaps(game) -> void:
 			game.ride.scene_t = 5.0 if air else 0.0
 			for sz in sizes:
 				var b: Array = game.hud.layout_buttons(sz)
-				var wanted: int = 4 + (1 if "jump" in game.ride.moves else 0) + 1 + game.ride.unlocked.size() + (1 if game.ride.level.get("pop", false) else 0)
+				var has_tricks: bool = game.ride.unlocked.size() > 0 or game.ride.level.get("pop", false)
+				var wanted: int = 4 + (1 if "jump" in game.ride.moves else 0) + 1 + (1 if has_tricks else 0)
 				check(b.size() == wanted, "ride %d %s: all %d buttons placed (got %d)" % [i + 1, sz, wanted, b.size()])
 				for p in b.size():
 					var a: Array = b[p]
@@ -52,6 +53,13 @@ func _no_overlaps(game) -> void:
 						check(c.distance_to(o[1]) >= float(a[2]) + float(o[2]), "ride %d %s: %s and %s overlap" % [i + 1, sz, a[0], o[0]])
 		game.ride.airborne = false
 		game.ride.scene_t = 0.0
+
+
+func _drag(idx: int, pos: Vector2) -> void:
+	var e := InputEventScreenDrag.new()
+	e.index = idx
+	e.position = root.get_final_transform() * pos
+	Input.parse_input_event(e)
 
 
 func _find(game, action: String) -> Vector2:
@@ -80,15 +88,31 @@ func _run(game) -> void:
 		await physics_frame
 		peak = maxf(peak, game.ride.pitch)
 	check(peak > 15.0, "holding WHEELIE lifts the front (peak %.0f)" % peak)
-	var trick_pos := _find(game, "trick_1")
-	check(trick_pos.x > 0.0, "the no-hands button is on screen")
-	_touch(1, trick_pos, true)
+	# The quick selector: hold TRICK, slide to NO HANDS, let go.
+	var tb := _find(game, "trick_btn")
+	check(tb.x > 0.0, "the TRICK button is on screen")
+	_touch(1, tb, true)
+	await process_frame
+	var target := Vector2.ZERO
+	for it in game.hud.trick_fan(tb):
+		if it[0] == "trick_1":
+			target = it[1]
+	check(target != Vector2.ZERO, "NO HANDS is in the selector")
+	_drag(1, target)
 	for f in 3:
 		await physics_frame
-	_touch(1, trick_pos, false)
-	for f in 3:
+	check(game.ride.trick == "no_hands" or game.ride.tricks_done > 0, "sliding to NO HANDS mid-wheelie does the trick")
+	_touch(1, target, false)
+	for f in 50:
 		await physics_frame
-	check(game.ride.trick == "no_hands" or game.ride.tricks_done > 0, "tapping NO HANDS mid-wheelie does the trick")
+	# A quick tap repeats it.
+	var done_before: int = game.ride.tricks_done
+	_touch(1, tb, true)
+	await physics_frame
+	_touch(1, tb, false)
+	for f in 50:
+		await physics_frame
+	check(game.ride.tricks_done > done_before or game.ride.trick != "", "a quick tap on TRICK repeats the last trick")
 	_touch(0, _find(game, "wheelie"), false)
 	for f in 5:
 		await physics_frame

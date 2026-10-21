@@ -23,7 +23,7 @@ A side-on stunt rider with an angled view, in the spirit of the old excite-style
 | X | PATAAKHA: the "tuned" silencer backfires |
 | R / Esc / Enter | Retry / menu / next ride |
 
-**On a phone or tablet** the controls appear on screen. Your left thumb works the lanes and the brake, and your right thumb holds WHEELIE (feather it) with the trick and PATAAKHA buttons around it. The bike speeds up by itself, and II pauses to the menu. It plays both upright and sideways.
+**On a phone or tablet** there are just six buttons, which appear automatically. On the left, UP, DOWN and BRAKE (in the air these become BACK FLIP, FRONT FLIP and SPIN). On the right, WHEELIE, JUMP and TRICK. Hold TRICK and slide to a trick (NO HANDS, SUPERMAN, SEAT STAND, SELFIE, PATAAKHA); a quick tap repeats your last one. The bike speeds up by itself, and II pauses. It plays upright or sideways.
 
 ## Install
 

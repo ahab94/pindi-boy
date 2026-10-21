@@ -41,6 +41,14 @@ var show_touch := false
 var clean := false            # footage: no tip banner, no key hints
 var level_index := 0
 var _hint_action := ""        # the touch button the coach is pointing at
+# The TRICK quick selector: hold TRICK, slide to a trick, let go.
+var _fan_options: Array = []  # [action, label] for this ride, from layout_buttons()
+var _fan_finger := -1
+var _fan_center := Vector2.ZERO
+var _fan_sel := ""
+var _fan_drag := Vector2.ZERO
+var _last_trick := "trick_1"
+var _tap_release := 0         # frames until a tapped action is let go
 const World := preload("res://scripts/world.gd")
 const TRICK_BTN := {"no_hands": ["NO HANDS", "J", "trick_1"], "superman": ["SUPERMAN", "K", "trick_2"],
 	"seat_stand": ["SEAT STAND", "L", "trick_3"], "selfie": ["SELFIE", "U", "trick_4"]}
@@ -62,6 +70,12 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	size = get_viewport_rect().size     # a Control under a CanvasLayer doesn't resize itself
+	if _tap_release > 0:
+		_tap_release -= 1
+		if _tap_release == 0 and _fan_sel != "":
+			Input.action_release(_fan_sel)
+			if _fan_finger < 0:
+				_fan_sel = ""
 	if ride:
 		_shown_views = move_toward(_shown_views, float(ride.views), maxf(30.0, absf(ride.views - _shown_views) * 0.12))
 		_read_events()
@@ -274,7 +288,7 @@ static func touch_words(tip: String) -> String:
 ## "tap NO HANDS" on a phone, "press J" on a keyboard.
 func _press(trick: String) -> String:
 	var b: Array = TRICK_BTN[trick]
-	return ("tap " + String(b[0])) if show_touch else ("press " + String(b[1]))
+	return ("TRICK > " + String(b[0])) if show_touch else ("press " + String(b[1]))
 
 
 ## What to tell the player right now, and which touch button to light up.
@@ -327,7 +341,7 @@ func _coach() -> Array:
 		var kind := String(o.kind)
 		var in_lane: bool = absf(float(o.d) - float(r.d)) < float(k.dep) / 2.0 + 0.5
 		if kind == "pigeons" and r.level.get("pop", false) and o.state == "" and dx < 14.0:
-			return ["Pigeons! " + ("Tap PATAAKHA" if show_touch else "Press X: PATAAKHA"), "pop"]
+			return ["Pigeons! " + ("TRICK > PATAAKHA" if show_touch else "Press X: PATAAKHA"), "pop"]
 		if not in_lane:
 			continue
 		match kind:
@@ -506,35 +520,55 @@ func layout_buttons(sz: Vector2) -> Array:
 		extra.append([trick_actions[k], String(Ride.TRICKS[kk].label).split(" ")[0] if kk != k else String(Ride.TRICKS[kk].label).replace(" ", "\n")])
 	if ride.level.get("pop", false):
 		extra.append(["pop", "PATAA\nKHA"])
-	var small := r * 0.74
-	var step := small * 2.0 + 12.0
-	var slots: Array = []
-	if portrait:
-		# Top row between UP and JUMP first, then the bottom row between
-		# BRAKE and WHEELIE.
-		for k in 8:
-			slots.append(Vector2(up_c.x + r + 14.0 + small + k * step, row2))
-		for k in 8:
-			slots.append(Vector2(brake_c.x + r + 14.0 + small + k * step, bottom))
-	else:
-		for k in 10:
-			slots.append(Vector2(brake_c.x + r + 14.0 + small + k * step, bottom + r * 0.1))
-		for k in 10:
-			slots.append(Vector2(brake_c.x + r + 14.0 + small + k * step, bottom - r * 1.85))
-	for e in extra:
-		for sl in slots:
-			var c: Vector2 = sl
-			if c.x - small < 8.0 or c.x + small > sz.x - 8.0:
-				continue
-			var free := true
-			for o in out:
-				if c.distance_to(o[1]) < small + float(o[2]) + 8.0:
-					free = false
-					break
-			if free:
-				out.append([e[0], c, small, e[1]])
-				break
+	_fan_options = extra
+	if not extra.is_empty():
+		# One TRICK button; holding it opens the quick selector (trick_fan()).
+		var tc := Vector2((brake_c.x + r + wheelie_c.x - r * 1.2) / 2.0, bottom) if portrait \
+			else Vector2((jump_c.x if jump_c != Vector2.ZERO else wheelie_c.x) - r * 2.45, bottom)
+		out.append(["trick_btn", tc, r * 1.05, "TRICK"])
 	return out
+
+
+## The selector's items: [action, centre, label], fanned in an arc above
+## the TRICK button.
+func trick_fan(center: Vector2) -> Array:
+	var portrait := size.y > size.x
+	var r := 58.0 if portrait else 52.0
+	var out: Array = []
+	var n := _fan_options.size()
+	for i in n:
+		# Landscape leans the arc left, away from JUMP and WHEELIE.
+		var a0 := -160.0 if portrait else -178.0
+		var span := 140.0 if portrait else 125.0
+		var a := deg_to_rad(a0 + (span * i / maxf(1.0, n - 1)) if n > 1 else -100.0)
+		var c := center + Vector2(cos(a), sin(a)) * r * 2.35
+		c.x = clampf(c.x, r * 0.7, size.x - r * 0.7)
+		out.append([_fan_options[i][0], c, _fan_options[i][1]])
+	return out
+
+
+func _draw_fan() -> void:
+	var portrait := size.y > size.x
+	var r := 58.0 if portrait else 52.0
+	draw_circle(_fan_center, r * 3.3, Color(0, 0, 0, 0.35))
+	for it in trick_fan(_fan_center):
+		var sel: bool = it[0] == _fan_sel
+		var hint: bool = it[0] == _hint_action
+		var rad := r * (0.78 if sel else 0.66)
+		draw_circle(it[1], rad, Color(1, 0.85, 0.2, 0.85) if sel else Color(0.1, 0.05, 0.15, 0.85))
+		draw_arc(it[1], rad, 0, TAU, 32, Color(1, 0.85, 0.2) if hint else Color(1, 1, 1, 0.8), 4.0 if hint else 2.5)
+		var lines := String(it[2]).split("\n")
+		var fs := 20 if portrait else 16
+		var longest := 0
+		for ln in lines:
+			longest = maxi(longest, ln.length())
+		if longest > 6:
+			fs = int(fs * 6.5 / longest)
+		for li in lines.size():
+			_text(it[1] + Vector2(0, fs * 0.4 + (li - (lines.size() - 1) / 2.0) * fs * 1.1), lines[li], fs,
+				Color(0.1, 0.05, 0.05) if sel else Color(1, 1, 1), 0 if sel else 3, 1)
+	if _fan_drag != Vector2.ZERO:
+		draw_line(_fan_center, _fan_drag, Color(1, 0.85, 0.2, 0.7), 4.0)
 
 
 func _touch_buttons() -> void:
@@ -546,8 +580,9 @@ func _touch_buttons() -> void:
 		defs.append([b[0], b[1], b[3], b[2]])
 	for dd in defs:
 		var rad: float = dd[3]
-		var pressed: bool = dd[0] != "menu_btn" and Input.is_action_pressed(String(dd[0]))
-		if dd[0] == _hint_action:
+		var pressed: bool = (dd[0] == "trick_btn" and _fan_finger >= 0) or (InputMap.has_action(String(dd[0])) and Input.is_action_pressed(String(dd[0])))
+		var lit: bool = dd[0] == _hint_action or (dd[0] == "trick_btn" and (_hint_action.begins_with("trick") or _hint_action == "pop"))
+		if lit:
 			var glow := 0.5 + 0.5 * sin(ride.t * 12.0)
 			draw_circle(dd[1], rad + 10.0, Color(1, 0.85, 0.2, 0.25 + 0.3 * glow))
 			draw_arc(dd[1], rad + 6.0, 0, TAU, 40, Color(1, 0.85, 0.2, 0.9), 5.0)
@@ -564,6 +599,8 @@ func _touch_buttons() -> void:
 		for li in lines.size():
 			_text(dd[1] + Vector2(0, fs * 0.4 + (li - (lines.size() - 1) / 2.0) * fs * 1.1), lines[li], fs, Color(1, 1, 1, 0.95), 4, 1)
 		_buttons.append([String(dd[0]), dd[1], rad])
+	if _fan_finger >= 0:
+		_draw_fan()
 
 
 func _input(event: InputEvent) -> void:
@@ -571,11 +608,20 @@ func _input(event: InputEvent) -> void:
 		return
 	if event is InputEventScreenTouch:
 		var e := event as InputEventScreenTouch
+		if not e.pressed and e.index == _fan_finger:
+			_fan_up()
+			return
 		if e.pressed:
 			var act := _button_at(e.position)
 			if act == "menu_btn":
 				menu_pressed.emit()
 				get_viewport().set_input_as_handled()
+				return
+			if act == "trick_btn" and _fan_finger < 0:
+				_fan_finger = e.index
+				_fan_center = _button_pos("trick_btn")
+				_fan_sel = ""
+				_fan_drag = Vector2.ZERO
 				return
 			if act != "":
 				_touch_down[e.index] = act
@@ -585,6 +631,9 @@ func _input(event: InputEvent) -> void:
 			_touch_down.erase(e.index)
 	elif event is InputEventScreenDrag:
 		var e := event as InputEventScreenDrag
+		if e.index == _fan_finger:
+			_fan_move(e.position)
+			return
 		var act := _button_at(e.position)
 		if act == "menu_btn":
 			act = ""
@@ -597,6 +646,54 @@ func _input(event: InputEvent) -> void:
 				_touch_down[e.index] = act
 			else:
 				_touch_down.erase(e.index)
+
+
+func _button_pos(action: String) -> Vector2:
+	for b in _buttons:
+		if b[0] == action:
+			return b[1]
+	return Vector2.ZERO
+
+
+## Sliding on the selector: the item nearest the thumb's direction is
+## chosen as soon as the thumb leaves the TRICK button, and its trick starts
+## (and keeps going while the thumb stays down).
+func _fan_move(pos: Vector2) -> void:
+	_fan_drag = pos
+	var r := 58.0 if size.y > size.x else 52.0
+	if pos.distance_to(_fan_center) < r * 0.7:
+		return
+	var best := ""
+	var best_d := INF
+	for it in trick_fan(_fan_center):
+		var dd: float = pos.distance_to(it[1])
+		if dd < best_d:
+			best_d = dd
+			best = it[0]
+	if best == _fan_sel:
+		return
+	if _fan_sel != "" and _fan_sel != "pop":
+		Input.action_release(_fan_sel)
+	_fan_sel = best
+	Input.action_press(best)
+	if best == "pop":
+		_tap_release = 2
+	else:
+		_last_trick = best
+
+
+func _fan_up() -> void:
+	if _fan_sel == "":
+		# A quick tap: the last trick again.
+		Input.action_press(_last_trick)
+		_fan_sel = _last_trick
+		_tap_release = 2
+	elif _fan_sel != "pop":
+		Input.action_release(_fan_sel)
+	if _tap_release <= 0:
+		_fan_sel = ""
+	_fan_finger = -1
+	_fan_drag = Vector2.ZERO
 
 
 func _button_at(pos: Vector2) -> String:
@@ -612,6 +709,10 @@ func _button_at(pos: Vector2) -> String:
 ## Lets go of every held touch button (a ride ending mid-press would
 ## otherwise leave, say, the wheelie held down into the next one).
 func release_touches() -> void:
+	if _fan_sel != "":
+		Input.action_release(_fan_sel)
+	_fan_finger = -1
+	_fan_sel = ""
 	for idx in _touch_down:
 		Input.action_release(String(_touch_down[idx]))
 	_touch_down.clear()
@@ -740,11 +841,12 @@ func show_how_to() -> void:
 		"VIEWS are your score. Reach the target before you get home.",
 		"WHEELIE: %s. The bike balances itself, but the needle by the bike creeps toward red. LET GO before red or you loop it." % wheelie,
 		"COMBOS: every stunt adds views and the multiplier. Different stunts = bigger multiplier. Both wheels down for a moment = combo banked.",
-		"TRICKS: %s NO HANDS, SUPERMAN, SEAT STAND or SELFIE while in the air (speed breakers, ramps) or on one wheel. Bigger tricks need bigger air: if there isn't enough, it says TOO LOW." % t,
+		("TRICKS: hold the TRICK button and slide to NO HANDS, SUPERMAN, SEAT STAND, SELFIE (or PATAAKHA). A quick tap repeats your last trick. Do them in the air or on one wheel. Bigger tricks need bigger air: if there isn't enough, it says TOO LOW." if show_touch else
+			"TRICKS: %s NO HANDS, SUPERMAN, SEAT STAND or SELFIE while in the air (speed breakers, ramps) or on one wheel. Bigger tricks need bigger air: if there isn't enough, it says TOO LOW." % t),
 		"JUMP: hold %s to crouch, let go to hop. Hold it as you hit a ramp for huge air." % ("JUMP" if show_touch else "SHIFT"),
 		"IN THE AIR: %s for a backflip, %s for a frontflip (only while held), %s to spin a 360. Land LEVEL or you crash." % [
 			"hold BACK FLIP" if show_touch else "hold UP", "FRONT FLIP" if show_touch else "DOWN", "SPIN" if show_touch else "LEFT/RIGHT"],
-		"GRABS: hold a trick button to keep the pose (TWEAK = more views). Let go before landing.",
+		"GRABS: keep holding to keep the pose (TWEAK = more views). Let go before landing.",
 		"JIGRA: stunts fill the meter. Full = SCENE ON! Double views, a boost, and SUPER TRICKS on the trick buttons.",
 		"Land before a trick finishes = SLOPPY (combo lost). Hit traffic = crash. 3 crashes and Abbu takes the keys.",
 		"Change lane with the %s. Wheelie over potholes. PATAAKHA scares pigeons and goats." % lanes,
