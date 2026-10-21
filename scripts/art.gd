@@ -561,33 +561,127 @@ func pigeon(look: int, t: float, flying: float) -> void:
 
 # ---------------------------------------------------------------- vehicles
 
-## Auto-rickshaw. The pen is at (x, d0) on the road, facing `dir`.
+## Auto-rickshaw, the Pindi kind: a rounded nose over one front wheel, a
+## slanted windscreen, a curved black canvas hood over an open cabin, two
+## rear wheels, tassels and paintwork. Drawn as two profiles (far side darker)
+## joined by the roof, so it has depth. dir -1 faces left (the ulta one).
+const RICKSHAW_BODY := [Vector2(-1.32, 0.32), Vector2(0.95, 0.32), Vector2(1.3, 0.36), Vector2(1.42, 0.55),
+	Vector2(1.36, 0.82), Vector2(1.12, 1.02), Vector2(0.92, 1.05), Vector2(0.86, 0.9), Vector2(-1.25, 0.9),
+	Vector2(-1.36, 0.75)]
+const RICKSHAW_HOOD := [Vector2(1.04, 1.12), Vector2(0.86, 1.62), Vector2(0.6, 1.76), Vector2(-0.2, 1.8),
+	Vector2(-0.9, 1.76), Vector2(-1.25, 1.62), Vector2(-1.38, 1.3), Vector2(-1.36, 0.9), Vector2(-1.18, 0.9),
+	Vector2(-1.18, 1.5), Vector2(-0.95, 1.62), Vector2(0.62, 1.62), Vector2(0.86, 1.08)]
+
+
 func rickshaw(x: float, d: float, dir: float, look: int, t: float) -> void:
-	var body: Color = [Color(0.15, 0.55, 0.3), Color(0.95, 0.75, 0.1), Color(0.2, 0.4, 0.75)][look % 3]
-	var d0 := d - 0.7
-	var d1 := d + 0.7
+	var body: Color = [Color(0.12, 0.55, 0.3), Color(0.95, 0.72, 0.08), Color(0.15, 0.38, 0.75)][look % 3]
+	var hood := Color(0.1, 0.1, 0.11)
 	var bounce := sin(t * 14.0 + look) * 0.02
-	box(x - 1.3, x + 1.3, d0 + 0.05, d1 - 0.05, 0.25 + bounce, 0.95 + bounce, body)
-	# Canopy: black canvas roof on thin posts, open sides.
-	box(x - 1.25, x + 0.85 * dir, d0, d1, 1.62 + bounce, 1.78 + bounce, Color(0.1, 0.1, 0.1))
-	pen(P(x, d0, 0.0), s, 0.0, dir)
-	line(-1.2, 0.95 + bounce, -1.2, 1.62 + bounce, 0.05, Color(0.1, 0.1, 0.1))
-	line(0.82, 0.95 + bounce, 0.82, 1.62 + bounce, 0.05, Color(0.1, 0.1, 0.1))
-	# The driver up front and a passenger in the back.
-	circle(0.45, 1.36 + bounce, 0.13, SKIN)
-	poly([Vector2(0.3, 0.95), Vector2(0.62, 0.95), Vector2(0.58, 1.24), Vector2(0.34, 1.24)], Color(0.85, 0.85, 0.82))
-	circle(-0.55, 1.34 + bounce, 0.13, SKIN_DARK)
-	poly([Vector2(-0.72, 0.95), Vector2(-0.38, 0.95), Vector2(-0.42, 1.22), Vector2(-0.68, 1.22)], Color(0.6, 0.3, 0.35))
-	# The nose and decorations: tassels along the roof and a big painted eye.
-	poly([Vector2(1.3, 0.25 + bounce), Vector2(1.45, 0.4 + bounce), Vector2(1.38, 1.0 + bounce), Vector2(1.3, 0.95 + bounce)], body.darkened(0.15))
+	var up := Vector2(0, bounce)
+	_rk = [x, d, dir]
+	var save_ink := ink
+	# Far side, in shadow, and the far rear wheel.
+	_side(RICKSHAW_BODY, 1.0, up, body.darkened(0.45))
+	_side(RICKSHAW_HOOD, 1.0, up, hood)
+	pen(_rp(Vector2(-0.85, 0.0), 1.0), s, 0.0, dir)
+	_wheel(0.0, 0.22, 0.22, -x * dir / 0.22)
+	# The single front wheel, in the middle under the nose.
+	pen(_rp(Vector2(0.98, 0.0), 0.0), s, 0.0, dir)
+	_wheel(0.0, 0.22, 0.22, -x * dir / 0.22)
+	ink = 0.0
+	# The shell: the body outline swept between the two sides (it narrows
+	# to the nose), and the hood's roof.
+	var n := RICKSHAW_BODY.size()
+	for i in n:
+		if i == 7:
+			continue        # the cabin's open top edge
+		var a2: Vector2 = RICKSHAW_BODY[i] + up
+		var b2: Vector2 = RICKSHAW_BODY[(i + 1) % n] + up
+		_fill(PackedVector2Array([_rp(a2, -1.0), _rp(b2, -1.0), _rp(b2, 1.0), _rp(a2, 1.0)]),
+			body.darkened(0.08 + 0.02 * i))
+	_fill(PackedVector2Array([_rp(Vector2(-1.2, 0.9) + up, -1.0), _rp(Vector2(0.86, 0.9) + up, -1.0),
+		_rp(Vector2(0.86, 0.9) + up, 1.0), _rp(Vector2(-1.2, 0.9) + up, 1.0)]), body.darkened(0.35))
+	ink = save_ink
+	# Inside: the back bench with two passengers, the driver at the bar.
+	pen(_rp(Vector2(0.0, 0.0), 0.0), s, 0.0, dir)
+	rect(-1.15, 0.9 + bounce, -0.35, 1.15 + bounce, Color(0.55, 0.12, 0.15))
+	for i in 2:
+		var px := -0.95 + i * 0.4
+		poly([Vector2(px - 0.15, 1.0), Vector2(px + 0.15, 1.0), Vector2(px + 0.13, 1.38), Vector2(px - 0.13, 1.38)],
+			[Color(0.85, 0.85, 0.8), Color(0.6, 0.3, 0.35)][(i + look) % 2])
+		circle(px, 1.5 + bounce, 0.12, [SKIN, SKIN_DARK][(i + look) % 2])
+	poly([Vector2(0.18, 1.0), Vector2(0.48, 1.0), Vector2(0.46, 1.36), Vector2(0.2, 1.36)], Color(0.9, 0.9, 0.86))
+	circle(0.34, 1.5 + bounce, 0.13, SKIN)
+	line(0.24, 1.6 + bounce, 0.44, 1.6 + bounce, 0.05, Color(0.12, 0.1, 0.1))
+	limb(Vector2(0.42, 1.28), Vector2(0.72, 1.18), 0.07, SKIN)
+	line(0.68, 1.12, 0.8, 1.24, 0.035, Color(0.2, 0.2, 0.2))
+	# The hood's roof, over everyone's heads.
+	ink = 0.0
+	for i in range(0, 6):
+		var a3: Vector2 = RICKSHAW_HOOD[i] + up
+		var b3: Vector2 = RICKSHAW_HOOD[i + 1] + up
+		_fill(PackedVector2Array([_rp(a3, -1.0), _rp(b3, -1.0), _rp(b3, 1.0), _rp(a3, 1.0)]), hood.lightened(0.14 - i * 0.02))
+	ink = save_ink
+	# Near side: body, hood frame, windscreen.
+	_side(RICKSHAW_BODY, -1.0, up, body)
+	_side(RICKSHAW_HOOD, -1.0, up, hood)
+	_fill(PackedVector2Array([_rp(Vector2(1.02, 1.1) + up, -0.9), _rp(Vector2(0.88, 1.58) + up, -0.9),
+		_rp(Vector2(0.88, 1.58) + up, 0.9), _rp(Vector2(1.02, 1.1) + up, 0.9)]), Color(0.6, 0.78, 0.88, 0.7))
+	pen(_rp(Vector2(0.0, 0.0), -1.0), s, 0.0, dir)
+	ink = 0.0
+	line(-1.2, 0.62 + bounce, 0.9, 0.62 + bounce, 0.035, CHROME)
+	for i in 4:
+		var sx := -1.0 + i * 0.5
+		line(sx, 1.66 + bounce, sx + 0.02, 1.78 + bounce, 0.01, Color(0.3, 0.3, 0.32))
+	ink = save_ink
+	_flower(-0.75, 0.47 + bounce, 0.1, Color(1, 0.3, 0.5))
+	_flower(0.35, 0.47 + bounce, 0.1, Color(1, 1, 1))
+	ellipse(-0.2, 0.76 + bounce, 0.16, 0.08, Color(1, 1, 1))
+	circle(-0.2, 0.76 + bounce, 0.055, Color(0.1, 0.3, 0.8))
+	circle(-1.33, 0.52 + bounce, 0.04, Color(1, 0.2, 0.15))
 	for i in 9:
-		var tx := -1.2 + i * 0.25
-		poly([Vector2(tx, 1.62 + bounce), Vector2(tx + 0.12, 1.62 + bounce), Vector2(tx + 0.06, 1.5 + bounce)],
+		var tx := -1.15 + i * 0.22
+		poly([Vector2(tx, 1.62 + bounce), Vector2(tx + 0.11, 1.62 + bounce), Vector2(tx + 0.055, 1.49 + bounce)],
 			[Color(1, 0.2, 0.3), Color(1, 0.85, 0.1), Color(0.2, 0.8, 0.4)][i % 3])
-	ellipse(-0.1, 0.6 + bounce, 0.18, 0.1, Color(1, 1, 1))
-	circle(-0.1, 0.6 + bounce, 0.06, Color(0.1, 0.3, 0.8))
-	_wheel(-0.85, 0.25, 0.25, -x * dir / 0.25)
-	_wheel(1.05, 0.25, 0.25, -x * dir / 0.25)
+	_wheel(-0.85, 0.22, 0.22, -x * dir / 0.22)
+	# Headlight on the very front of the nose.
+	pen(_rp(Vector2(1.38, 0.72) + up, 0.0), s, 0.0, dir)
+	circle(0.0, 0.0, 0.08, CHROME)
+	circle(0.0, 0.0, 0.06, Color(1, 0.95, 0.7))
+
+
+var _rk := [0.0, 0.0, 1.0]     # the rickshaw being drawn: x, d, dir
+
+
+## Half-width at a point along the rickshaw: full across the cabin, narrowing
+## over the nose to the single front wheel.
+func _rk_half(along: float) -> float:
+	return 0.55 * lerpf(1.0, 0.4, clampf((along - 0.7) / 0.72, 0.0, 1.0))
+
+
+## A profile point on one side (-1 near, +1 far, 0 centre line) to screen.
+func _rp(q: Vector2, side: float) -> Vector2:
+	return P(float(_rk[0]) + q.x * float(_rk[2]), float(_rk[1]) + side * _rk_half(q.x), q.y)
+
+
+func _side(pts: Array, side: float, up: Vector2, col: Color) -> void:
+	var out := PackedVector2Array()
+	for q in pts:
+		out.append(_rp(q + up, side))
+	_fill(out, col)
+
+
+func _shift(pts: Array, by: Vector2) -> Array:
+	var out: Array = []
+	for q in pts:
+		out.append(q + by)
+	return out
+
+
+## A point in a vehicle's local profile (along, up), placed on the plane at
+## depth d, to screen.
+func _pp(x: float, d: float, q: Vector2, dir: float) -> Vector2:
+	return P(x + q.x * dir, d, q.y)
 
 
 ## The white passenger wagon, with a conductor hanging out of the door.
