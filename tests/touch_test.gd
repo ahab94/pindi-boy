@@ -29,6 +29,31 @@ func _touch(idx: int, pos: Vector2, down: bool) -> void:
 	Input.parse_input_event(e)
 
 
+## Every ride (most buttons, in the air and in SCENE ON too), on phone and
+## tablet shapes: no two buttons may overlap, and all stay on screen.
+func _no_overlaps(game) -> void:
+	var levels = load("res://scripts/levels.gd")
+	var sizes := [Vector2(720, 1280), Vector2(720, 1560), Vector2(720, 1100), Vector2(1280, 720), Vector2(1560, 720), Vector2(1280, 960)]
+	for i in levels.count():
+		game.start_level(i)
+		for air in [false, true]:
+			game.ride.airborne = air
+			game.ride.scene_t = 5.0 if air else 0.0
+			for sz in sizes:
+				var b: Array = game.hud.layout_buttons(sz)
+				var wanted: int = 4 + (1 if "jump" in game.ride.moves else 0) + 1 + game.ride.unlocked.size() + (1 if game.ride.level.get("pop", false) else 0)
+				check(b.size() == wanted, "ride %d %s: all %d buttons placed (got %d)" % [i + 1, sz, wanted, b.size()])
+				for p in b.size():
+					var a: Array = b[p]
+					var c: Vector2 = a[1]
+					check(c.x - float(a[2]) >= 0.0 and c.x + float(a[2]) <= sz.x and c.y + float(a[2]) <= sz.y, "ride %d %s: %s on screen" % [i + 1, sz, a[0]])
+					for q in range(p + 1, b.size()):
+						var o: Array = b[q]
+						check(c.distance_to(o[1]) >= float(a[2]) + float(o[2]), "ride %d %s: %s and %s overlap" % [i + 1, sz, a[0], o[0]])
+		game.ride.airborne = false
+		game.ride.scene_t = 0.0
+
+
 func _find(game, action: String) -> Vector2:
 	for b in game.hud._buttons:
 		if b[0] == action:
@@ -88,5 +113,6 @@ func _run(game) -> void:
 	await process_frame
 	await process_frame
 	check(game.state == game.State.MENU, "the pause button goes back to the menu")
+	_no_overlaps(game)
 	print("TOUCH OK" if fails == 0 else "TOUCH FAILED (%d)" % fails)
 	quit(1 if fails else 0)

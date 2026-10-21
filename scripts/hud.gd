@@ -470,29 +470,35 @@ func _chappal_icon(c: Vector2, used: bool) -> void:
 
 # ---------------------------------------------------------------- touch
 
-func _touch_buttons() -> void:
-	var sz := size
+## Where every touch button goes for a screen size: [action, centre,
+## radius, label]. The big buttons have fixed spots; the small trick and
+## PATAAKHA buttons take the first free slot in a grid, checked against
+## everything already placed, so nothing can overlap on any screen shape.
+func layout_buttons(sz: Vector2) -> Array:
 	var portrait := sz.y > sz.x
-	var r := 66.0 if portrait else 56.0
-	var bottom := sz.y - r - 24.0
-	var defs: Array = []
-	# Left thumb: lanes and the brake. Right thumb: the wheelie (big), tricks
-	# and the pataakha. On touch screens the throttle is automatic: nobody
-	# can hold gas and wheelie with one thumb.
-	# In the air the left buttons turn into flip and spin buttons.
+	var r := 58.0 if portrait else 52.0
+	var bottom := sz.y - r - 22.0
+	var out: Array = []
+	# Left thumb: lanes and the brake. Right thumb: the wheelie (big), jump,
+	# tricks and the pataakha. On touch screens the throttle is automatic:
+	# nobody can hold gas and wheelie with one thumb. In the air the left
+	# buttons turn into flip and spin buttons. Everything stays in a strip
+	# along the bottom (two rows on a tall phone), clear of the road.
 	var air: bool = ride.airborne
 	var mv: Array = ride.moves
-	defs.append(["up", Vector2(r + 24.0, bottom - r * 2.3), "BACK\nFLIP" if air and "flip" in mv else "UP"])
-	defs.append(["down", Vector2(r + 24.0, bottom), "FRONT\nFLIP" if air and "flip" in mv else "DOWN"])
-	defs.append(["brake", Vector2(r * 3.4 + 24.0, bottom), "SPIN" if air and "spin" in mv else "BRAKE"])
-	defs.append(["wheelie", Vector2(sz.x - r * 1.25 - 24.0, bottom - r * 0.25), "WHEELIE"])
-	var wheelie_c := Vector2(sz.x - r * 1.25 - 24.0, bottom - r * 0.25)
+	var row2 := bottom - r * 2.3
+	var up_c := Vector2(r + 20.0, row2 if portrait else bottom - r * 2.2)
+	out.append(["up", up_c, r, "BACK\nFLIP" if air and "flip" in mv else "UP"])
+	out.append(["down", Vector2(r + 20.0, bottom), r, "FRONT\nFLIP" if air and "flip" in mv else "DOWN"])
+	var brake_c := Vector2(r * 3.2 + 20.0, bottom)
+	out.append(["brake", brake_c, r, "SPIN" if air and "spin" in mv else "BRAKE"])
+	var wheelie_c := Vector2(sz.x - r * 1.2 - 20.0, bottom - r * 0.15)
+	out.append(["wheelie", wheelie_c, r * 1.2, "WHEELIE"])
+	var jump_c := Vector2.ZERO
 	if "jump" in mv:
-		# Portrait: JUMP sits right above WHEELIE (one thumb slides between
-		# them). Landscape has room to put it beside.
-		var jc := Vector2(wheelie_c.x, wheelie_c.y - r * 2.45) if portrait else Vector2(sz.x - r * 4.0 - 24.0, bottom - r * 0.1)
-		defs.append(["jump", jc, "JUMP"])
-	defs.append(["menu_btn", Vector2(sz.x / 2.0 + (40.0 if portrait else 0.0), (58.0 if portrait else 112.0)), "II"])
+		jump_c = Vector2(wheelie_c.x, row2 - r * 0.15) if portrait else Vector2(wheelie_c.x - r * 2.5, bottom)
+		out.append(["jump", jump_c, r * 1.05, "JUMP"])
+	out.append(["menu_btn", Vector2(sz.x / 2.0 + (40.0 if portrait else 0.0), (58.0 if portrait else 112.0)), r * 0.5, "II"])
 	var extra: Array = []
 	var trick_actions := {"no_hands": "trick_1", "superman": "trick_2", "seat_stand": "trick_3", "selfie": "trick_4"}
 	for k in ride.unlocked:
@@ -500,21 +506,46 @@ func _touch_buttons() -> void:
 		extra.append([trick_actions[k], String(Ride.TRICKS[kk].label).split(" ")[0] if kk != k else String(Ride.TRICKS[kk].label).replace(" ", "\n")])
 	if ride.level.get("pop", false):
 		extra.append(["pop", "PATAA\nKHA"])
-	for i in extra.size():
-		# An arc of small buttons round the wheelie button.
-		# A row of small buttons: above BRAKE (portrait), above WHEELIE/JUMP
-		# (landscape).
-		var c := Vector2(r * 3.4 + 24.0 + i * r * 1.55, bottom - r * 2.35) if portrait \
-			else Vector2(sz.x - r * 0.85 - 24.0 - i * r * 1.6, bottom - r * 2.55)
-		defs.append([extra[i][0], c, extra[i][1]])
+	var small := r * 0.74
+	var step := small * 2.0 + 12.0
+	var slots: Array = []
+	if portrait:
+		# Top row between UP and JUMP first, then the bottom row between
+		# BRAKE and WHEELIE.
+		for k in 8:
+			slots.append(Vector2(up_c.x + r + 14.0 + small + k * step, row2))
+		for k in 8:
+			slots.append(Vector2(brake_c.x + r + 14.0 + small + k * step, bottom))
+	else:
+		for k in 10:
+			slots.append(Vector2(brake_c.x + r + 14.0 + small + k * step, bottom + r * 0.1))
+		for k in 10:
+			slots.append(Vector2(brake_c.x + r + 14.0 + small + k * step, bottom - r * 1.85))
+	for e in extra:
+		for sl in slots:
+			var c: Vector2 = sl
+			if c.x - small < 8.0 or c.x + small > sz.x - 8.0:
+				continue
+			var free := true
+			for o in out:
+				if c.distance_to(o[1]) < small + float(o[2]) + 8.0:
+					free = false
+					break
+			if free:
+				out.append([e[0], c, small, e[1]])
+				break
+	return out
+
+
+func _touch_buttons() -> void:
+	var sz := size
+	var portrait := sz.y > sz.x
+	var r := 66.0 if portrait else 56.0
+	var defs: Array = []
+	for b in layout_buttons(sz):
+		defs.append([b[0], b[1], b[3], b[2]])
 	for dd in defs:
-		var rad := r if not (String(dd[0]).begins_with("trick") or dd[0] == "pop") else r * 0.74
-		if dd[0] == "wheelie":
-			rad = r * 1.25
-		elif dd[0] == "jump":
-			rad = r * 1.05
-		elif dd[0] == "menu_btn":
-			rad = r * 0.5
+		var rad: float = dd[3]
 		var pressed: bool = dd[0] != "menu_btn" and Input.is_action_pressed(String(dd[0]))
 		if dd[0] == _hint_action:
 			var glow := 0.5 + 0.5 * sin(ride.t * 12.0)
