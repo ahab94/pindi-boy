@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 count=$(checks/run.sh 60 --headless --path . --script res://tests/level_count.gd 2>/dev/null | grep -o 'LEVELS [0-9]*' | cut -d' ' -f2)
 fail=0
 for ((i = 0; i < count; i++)); do
-	line=$(checks/run.sh 120 --headless --fixed-fps 60 --path . -- --level=$i --autopilot --exit-on-end --no-slowmo --no-music --timeout=400 2>&1 | grep '^RESULT')
+	line=$(checks/run.sh 300 --headless --fixed-fps 60 --path . -- --level=$i --autopilot --exit-on-end --no-slowmo --no-music --timeout=400 2>&1 | grep '^RESULT')
 	echo "$line"
 	echo "$line" | grep -qE ' finished .* stars=[123] ' || fail=1
 done

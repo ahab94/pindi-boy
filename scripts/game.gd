@@ -10,7 +10,6 @@ extends Node2D
 const Levels := preload("res://scripts/levels.gd")
 const Ride := preload("res://scripts/ride.gd")
 const View := preload("res://scripts/view.gd")
-const View3D := preload("res://scripts/view3d.gd")
 const Autopilot := preload("res://scripts/autopilot.gd")
 const Hud := preload("res://scripts/hud.gd")
 const Sound := preload("res://scripts/sound.gd")
@@ -50,7 +49,8 @@ func _ready() -> void:
 	_fit_screen()
 	get_tree().root.size_changed.connect(_fit_screen)
 	# The drawn 2D view; --3d tries the experimental 3D street instead.
-	view = View3D.new() if _flags.has("3d") else View.new()
+	# (load(), not preload(): the 3D model only loads when asked for.)
+	view = load("res://scripts/view3d.gd").new() if _flags.has("3d") else View.new()
 	add_child(view)
 	sound = Sound.new()
 	sound.music_on = not _flags.has("no-music")
@@ -153,6 +153,7 @@ func _attach(r) -> void:
 ## attract mode.
 func show_menu() -> void:
 	state = State.MENU
+	hud.release_touches()
 	ride = Ride.new()
 	ride.setup(Levels.get_level(4))
 	ride.t = 0.0
@@ -244,8 +245,10 @@ func _read_input() -> Dictionary:
 	for action in TRICK_KEYS:
 		if Input.is_action_just_pressed(action):
 			trick = TRICK_KEYS[action]
+	# Touch screens get an automatic throttle (see hud.gd _touch_buttons).
+	var auto_gas: bool = hud.show_touch and not Input.is_action_pressed("brake")
 	return {
-		"gas": Input.is_action_pressed("gas"),
+		"gas": Input.is_action_pressed("gas") or auto_gas,
 		"brake": Input.is_action_pressed("brake"),
 		"lane": Input.get_axis("down", "up"),
 		"lift": Input.is_action_pressed("wheelie"),
@@ -256,6 +259,7 @@ func _read_input() -> Dictionary:
 
 func _finish() -> void:
 	state = State.RESULT
+	hud.release_touches()
 	hud.racing = false
 	sound.engine("70", 0.0, 1.0, false, false)
 	var lvl: Dictionary = ride.level

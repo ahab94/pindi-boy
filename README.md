@@ -1,4 +1,8 @@
-# Pindi Boy (working title)
+# Pindi Boy
+
+![Pindi Boy gameplay](docs/media/gameplay.gif)
+
+**▶ Play free in your browser (phone or computer): https://ahab94.github.io/pindi-boy/**
 
 **Shani is 17, lives in Pindi, and has borrowed Abbu's 70. He films everything. Every wheelie, every near-miss and every crash is content.**
 
@@ -16,7 +20,14 @@ A side-on stunt rider with an angled view, in the spirit of the old excite-style
 | X | PATAAKHA: the "tuned" silencer backfires |
 | R / Esc / Enter | Retry / menu / next ride |
 
-Touch screens get on-screen buttons automatically.
+**On a phone or tablet** the controls appear on screen. Your left thumb works the lanes and the brake, and your right thumb holds WHEELIE (feather it) with the trick and PATAAKHA buttons around it. The bike speeds up by itself, and II pauses to the menu. It plays both upright and sideways.
+
+## Install
+
+- **Browser:** https://ahab94.github.io/pindi-boy/
+- **macOS / Linux:** `curl -fsSL https://raw.githubusercontent.com/ahab94/pindi-boy/main/install.sh | bash`
+- **Windows (PowerShell):** `irm https://raw.githubusercontent.com/ahab94/pindi-boy/main/install.ps1 | iex`
+- Or grab a zip from [Releases](https://github.com/ahab94/pindi-boy/releases).
 
 ## How scoring works
 - Stunts add views to a **combo pot** and raise the **multiplier**. Repeats are worth half as much each time and don't raise it, so variety pays.
@@ -47,8 +58,12 @@ Targets are tuned with a deliberately sloppy "rookie" bot (`tests/sim.gd --rooki
 - **Sound:** all synthesized by `python3 tools/make_audio.py`. It makes an engine putt-putt that revs with speed, the pataakha bang, the rickshaw pom-pom, the warden's whistle, a record scratch, a sad trombone, crowd cheers and a bhangra-trap ride theme.
 - **The tone:** affectionate Pindi satire. There are no real brands ("the 70", "the 125") and no politics or religion. Shani is the hero, and the joke is the stunts.
 
+## Building it yourself
+Godot 4.7. `godot --path .` runs it. `bash checks/verify.sh` runs the tests, a touch-controls test, and a bot that must pass every ride. Every `v*` tag builds Windows, macOS, Linux and Web in GitHub Actions and publishes the release and the browser version.
+
+Credits are in [CREDITS.md](CREDITS.md).
+
 ## Roadmap
-- [x] v0.1: 10 rides, bots, tests, synthesized audio, a fidelity pass
-- [ ] The user plays it; tune the feel
-- [ ] Name approval, then repo, CI exports, Pages
-- [ ] Portrait Shorts and the trailer
+- [x] v0.1.0: 10 rides, mobile touch controls, bots and tests, synthesized Pothohari audio, 10 Shorts and a trailer
+- [ ] Tune the feel from players' feedback
+- [ ] More people and vehicle detail in the 2D art

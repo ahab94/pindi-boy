@@ -8,5 +8,7 @@ out=$(checks/run.sh 60 --headless --path . --script res://tests/smoke_test.gd 2>
 if echo "$out" | grep -qE "SCRIPT ERROR|triangulation failed|Invalid|Parse Error" || ! echo "$out" | grep -q "SMOKE OK"; then echo "$out"; echo "smoke test failed"; exit 1; fi
 out=$(checks/run.sh 60 --headless --path . --script res://tests/game_test.gd 2>&1) || { echo "$out"; exit 1; }
 if echo "$out" | grep -qE "SCRIPT ERROR|FAIL:" || ! echo "$out" | grep -q "GAME OK"; then echo "$out"; echo "gameplay test failed"; exit 1; fi
+out=$(checks/run.sh 90 --headless --path . --script res://tests/touch_test.gd 2>&1) || { echo "$out"; exit 1; }
+if echo "$out" | grep -qE "SCRIPT ERROR|FAIL:" || ! echo "$out" | grep -q "TOUCH OK"; then echo "$out"; echo "touch test failed"; exit 1; fi
 bash checks/autoplay.sh | tail -1
 echo "pindi-boy: all good"

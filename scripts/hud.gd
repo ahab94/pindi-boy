@@ -132,6 +132,8 @@ func _font() -> Font:
 
 func _text(at: Vector2, msg: String, px: int, col: Color, outline := 0, align := 0) -> void:
 	var f := _font()
+	if size.y > size.x and px < 30:
+		px = int(px * 1.3)     # phones held upright: small text gets bigger
 	var w := f.get_string_size(msg, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x
 	var pos := at
 	if align == 1:
@@ -221,16 +223,27 @@ func _play_hud() -> void:
 		_text(Vector2(sz.x / 2.0, sz.y * 0.42), "CHALO!", 96, Color(0.4, 1, 0.5, 1.0 - t / 0.8), 10, 1)
 	if t < 4.5 and not clean:
 		var a := clampf(4.5 - t, 0.0, 1.0)
-		var tip := String(ride.level.tip)
+		var tip := touch_words(String(ride.level.tip)) if show_touch else String(ride.level.tip)
 		var ty := sz.y * (0.58 if not portrait else 0.18)
 		_wrap_banner(tip, Vector2(sz.x / 2.0, ty), minf(sz.x - 60.0, 900.0), a)
 	if ride.result == "keys":
 		_text(Vector2(sz.x / 2.0, sz.y * 0.4), "ABBU TOOK THE KEYS", 52, Color(1, 0.35, 0.3), 8, 1)
 
 
+## The level tips name keyboard keys; on a phone, name the buttons instead.
+static func touch_words(tip: String) -> String:
+	var swaps := [["Hold SPACE to wheelie, let go to drop it", "Hold WHEELIE to lift the front, let go to drop it"],
+		["press J for NO HANDS", "tap NO HANDS"], ["Press K in the air for SUPERMAN", "Tap SUPERMAN in the air"],
+		["L in the air for SEAT STAND", "SEAT STAND in the air"], ["U is SELFIE", "SELFIE is new"],
+		["Press X: PATAAKHA!", "Tap PATAAKHA!"]]
+	for sw in swaps:
+		tip = tip.replace(sw[0], sw[1])
+	return tip
+
+
 func _wrap_banner(msg: String, centre: Vector2, width: float, a: float) -> void:
 	var f := _font()
-	var px := 22
+	var px := 30 if size.y > size.x else 22
 	var words := msg.split(" ")
 	var lines: Array = []
 	var cur := ""
@@ -242,30 +255,31 @@ func _wrap_banner(msg: String, centre: Vector2, width: float, a: float) -> void:
 		else:
 			cur = test
 	lines.append(cur)
-	var hgt := lines.size() * 30.0 + 20.0
+	var hgt := lines.size() * px * 1.36 + 20.0
 	draw_rect(Rect2(centre.x - width / 2.0, centre.y - 30, width, hgt), Color(0.1, 0.05, 0.15, 0.75 * a))
 	for i in lines.size():
-		_text(Vector2(centre.x, centre.y + i * 30.0), String(lines[i]), px, Color(1, 1, 1, a), 0, 1)
+		_text(Vector2(centre.x, centre.y + i * px * 1.36), String(lines[i]), px, Color(1, 1, 1, a), 0, 1)
 
 
 func _chat_box(portrait: bool) -> void:
 	var sz := size
-	var w := 300.0
+	var w := 300.0 if not portrait else 420.0
 	var x := sz.x - w - 16.0
 	var y := 90.0 if not portrait else 190.0
 	if _chat.is_empty():
 		return
 	draw_rect(Rect2(x - 8, y - 22, w + 16, 24), Color(0.85, 0.1, 0.1, 0.85))
 	_text(Vector2(x, y - 4), "LIVE   %s watching" % Ride.fmt(120 + int(ride.views / 9)), 14, Color(1, 1, 1))
-	var bg_h := _chat.size() * 24.0 + 10.0
+	var lh := 24.0 if not portrait else 30.0
+	var bg_h := _chat.size() * lh + 10.0
 	draw_rect(Rect2(x - 8, y + 2, w + 16, bg_h), Color(0, 0, 0, 0.35))
 	for i in _chat.size():
 		var m: Array = _chat[i]
 		var age: float = ride.t - float(m[2])
 		var a := clampf(9.0 - age, 0.0, 1.0)
-		var hy := y + 22.0 + i * 24.0
+		var hy := y + 22.0 + i * lh
 		_text(Vector2(x, hy), String(m[0]) + ":", 14, Color(0.55, 0.85, 1, a))
-		var hw := _font().get_string_size(String(m[0]) + ": ", HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
+		var hw := _font().get_string_size(String(m[0]) + ": ", HORIZONTAL_ALIGNMENT_LEFT, -1, 18 if portrait else 14).x
 		_text(Vector2(x + hw, hy), String(m[1]), 14, Color(1, 1, 1, a))
 
 
@@ -319,14 +333,17 @@ func _chappal_icon(c: Vector2, used: bool) -> void:
 func _touch_buttons() -> void:
 	var sz := size
 	var portrait := sz.y > sz.x
-	var r := 52.0 if portrait else 46.0
+	var r := 76.0 if portrait else 56.0
 	var bottom := sz.y - r - 24.0
 	var defs: Array = []
+	# Left thumb: lanes and the brake. Right thumb: the wheelie (big), tricks
+	# and the pataakha. On touch screens the throttle is automatic: nobody
+	# can hold gas and wheelie with one thumb.
 	defs.append(["up", Vector2(r + 24.0, bottom - r * 2.3), "UP"])
 	defs.append(["down", Vector2(r + 24.0, bottom), "DOWN"])
 	defs.append(["brake", Vector2(r * 3.4 + 24.0, bottom), "BRAKE"])
-	defs.append(["gas", Vector2(sz.x - r - 24.0, bottom), "GAS"])
-	defs.append(["wheelie", Vector2(sz.x - r * 3.4 - 24.0, bottom), "WHEELIE"])
+	defs.append(["wheelie", Vector2(sz.x - r * 1.25 - 24.0, bottom - r * 0.25), "WHEELIE"])
+	defs.append(["menu_btn", Vector2(sz.x / 2.0, (196.0 if portrait else 112.0)), "II"])
 	var extra: Array = []
 	var trick_actions := {"no_hands": "trick_1", "superman": "trick_2", "seat_stand": "trick_3", "selfie": "trick_4"}
 	for k in ride.unlocked:
@@ -334,17 +351,24 @@ func _touch_buttons() -> void:
 	if ride.level.get("pop", false):
 		extra.append(["pop", "PATAA\nKHA"])
 	for i in extra.size():
-		var col := i % 3
-		var row := i / 3
-		defs.append([extra[i][0], Vector2(sz.x - r * 0.8 - 24.0 - col * r * 1.75, bottom - r * 2.4 - row * r * 1.75), extra[i][1]])
+		# An arc of small buttons round the wheelie button.
+		var a := PI * (1.04 + 0.2 * i)
+		var c := Vector2(sz.x - r * 1.25 - 24.0, bottom - r * 0.25)
+		defs.append([extra[i][0], c + Vector2(cos(a), sin(a)) * r * 2.55 + Vector2(r * 0.4, 0), extra[i][1]])
 	for dd in defs:
-		var rad := r if not (String(dd[0]).begins_with("trick") or dd[0] == "pop") else r * 0.78
+		var rad := r if not (String(dd[0]).begins_with("trick") or dd[0] == "pop") else r * 0.74
+		if dd[0] == "wheelie":
+			rad = r * 1.25
+		elif dd[0] == "menu_btn":
+			rad = r * 0.5
 		var pressed := Input.is_action_pressed(String(dd[0]))
-		draw_circle(dd[1], rad, Color(1, 1, 1, 0.35 if pressed else 0.18))
-		draw_arc(dd[1], rad, 0, TAU, 32, Color(1, 1, 1, 0.6), 3.0)
+		draw_circle(dd[1], rad, Color(0, 0, 0, 0.25))
+		draw_circle(dd[1], rad, Color(1, 1, 1, 0.4 if pressed else 0.16))
+		draw_arc(dd[1], rad, 0, TAU, 32, Color(1, 1, 1, 0.75), 3.0)
 		var lines := String(dd[2]).split("\n")
+		var fs := 24 if portrait else 18
 		for li in lines.size():
-			_text(dd[1] + Vector2(0, 6 + (li - (lines.size() - 1) / 2.0) * 16.0), lines[li], 14, Color(1, 1, 1, 0.9), 3, 1)
+			_text(dd[1] + Vector2(0, fs * 0.4 + (li - (lines.size() - 1) / 2.0) * fs * 1.1), lines[li], fs, Color(1, 1, 1, 0.95), 4, 1)
 		_buttons.append([String(dd[0]), dd[1], rad])
 
 
@@ -355,6 +379,10 @@ func _input(event: InputEvent) -> void:
 		var e := event as InputEventScreenTouch
 		if e.pressed:
 			var act := _button_at(e.position)
+			if act == "menu_btn":
+				menu_pressed.emit()
+				get_viewport().set_input_as_handled()
+				return
 			if act != "":
 				_touch_down[e.index] = act
 				Input.action_press(act)
@@ -364,6 +392,8 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventScreenDrag:
 		var e := event as InputEventScreenDrag
 		var act := _button_at(e.position)
+		if act == "menu_btn":
+			act = ""
 		var old := String(_touch_down.get(e.index, ""))
 		if act != old:
 			if old != "":
@@ -385,6 +415,14 @@ func _button_at(pos: Vector2) -> String:
 
 # ---------------------------------------------------------------- menu and results
 
+## Lets go of every held touch button (a ride ending mid-press would
+## otherwise leave, say, the wheelie held down into the next one).
+func release_touches() -> void:
+	for idx in _touch_down:
+		Input.action_release(String(_touch_down[idx]))
+	_touch_down.clear()
+
+
 func hide_panels() -> void:
 	if _panel:
 		_panel.queue_free()
@@ -392,6 +430,7 @@ func hide_panels() -> void:
 
 
 func _new_panel() -> VBoxContainer:
+	size = get_viewport_rect().size     # may run before the first _process
 	hide_panels()
 	var holder := CenterContainer.new()
 	holder.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -414,6 +453,8 @@ func _new_panel() -> VBoxContainer:
 
 func _label(box: Control, msg: String, px: int, col := Color(1, 1, 1), centre := true) -> Label:
 	var l := Label.new()
+	if size.y > size.x and px < 40:
+		px = int(px * 1.35)
 	l.text = msg
 	l.add_theme_font_size_override("font_size", px)
 	l.add_theme_color_override("font_color", col)
@@ -430,8 +471,9 @@ func _label(box: Control, msg: String, px: int, col := Color(1, 1, 1), centre :=
 func _button(box: Control, msg: String, cb: Callable) -> Button:
 	var b := Button.new()
 	b.text = msg
-	b.add_theme_font_size_override("font_size", 22)
-	b.custom_minimum_size = Vector2(0, 48)
+	var big := size.y > size.x
+	b.add_theme_font_size_override("font_size", 30 if big else 22)
+	b.custom_minimum_size = Vector2(0, 72 if big else 48)
 	b.pressed.connect(cb)
 	box.add_child(b)
 	return b
@@ -443,8 +485,8 @@ func show_result(title: String, lines: Array, stars: int, can_next: bool) -> voi
 	_label(box, title, 40, Color(1, 0.9, 0.3) if stars > 0 else Color(1, 0.5, 0.4))
 	var st := ""
 	for i in 3:
-		st += "★ " if i < stars else "☆ "
-	_label(box, st.strip_edges(), 40, Color(1, 0.85, 0.2))
+		st += "* " if i < stars else "- "
+	_label(box, "STARS  " + st.strip_edges(), 34, Color(1, 0.85, 0.2))
 	for ln in lines:
 		_label(box, String(ln), 20)
 	var row := HBoxContainer.new()
@@ -474,18 +516,18 @@ func show_menu() -> void:
 		var p: Dictionary = progress.get(i, {"views": 0, "stars": 0})
 		var st := ""
 		for s in 3:
-			st += "★" if s < int(p.stars) else "☆"
+			st += "*" if s < int(p.stars) else "-"
 		var msg := "%d. %s   %s" % [i + 1, lvl.name, st] if open else "%d. LOCKED" % (i + 1)
 		var b := _button(grid, msg, func() -> void: level_chosen.emit(i))
-		b.add_theme_font_size_override("font_size", 18)
-		b.custom_minimum_size = Vector2(330, 42)
+		b.add_theme_font_size_override("font_size", 26 if size.y > size.x else 18)
+		b.custom_minimum_size = Vector2(330, 62 if size.y > size.x else 42)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.disabled = not open
 		if open:
 			first = b
 	var keys := "Right/D gas · Left/A brake · Up/Down change lane · SPACE wheelie (hold, feather it)\nJ K L U tricks · X pataakha · R retry · Esc menu"
-	if size.y > size.x:
-		keys = "Hold WHEELIE and feather it.\nTricks in the air or on the back wheel."
+	if show_touch:
+		keys = "Left thumb: lanes and brake. Right thumb: hold WHEELIE and feather it.\nTricks in the air or on the back wheel. The bike speeds up by itself."
 	_label(box, keys, 15, Color(0.85, 0.85, 0.95))
 	if first:
 		first.grab_focus.call_deferred()
