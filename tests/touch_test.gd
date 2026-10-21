@@ -68,6 +68,22 @@ func _run(game) -> void:
 	for f in 5:
 		await physics_frame
 	check(not Input.is_action_pressed("wheelie"), "letting go releases the wheelie")
+	# JUMP: hold, let go, fly.
+	for f in 40:
+		await physics_frame
+	var jp := _find(game, "jump")
+	check(jp.x > 0.0, "the JUMP button is on screen")
+	_touch(3, jp, true)
+	for f in 25:
+		await physics_frame
+	_touch(3, jp, false)
+	var flew := false
+	for f in 20:
+		await physics_frame
+		flew = flew or game.ride.airborne
+	check(flew, "holding and letting go of JUMP hops")
+	for f in 90:
+		await physics_frame
 	_touch(2, _find(game, "menu_btn"), true)
 	await process_frame
 	await process_frame

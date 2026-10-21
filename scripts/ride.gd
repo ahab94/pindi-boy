@@ -49,20 +49,45 @@ const BIKES := {
 		"lift": 335.0, "grav": 300.0, "damp": 2.6, "launch": 1.12, "lane": 4.0, "balance": 80.0, "squirm": 0.8},
 }
 
-## time: how long it takes (it must finish before you land); steer: whether
-## you can still steer while doing it.
+## Air moves. Flips turn the bike nose-up (UP: backflip) or nose-down
+## (DOWN: frontflip) only while held; spins whip it round (GAS/BRAKE in the
+## air). Land within FLIP_CLEAN degrees of level and a whole number of
+## spins, or it's sloppy (or, way off, a crash).
+const FLIP_SPEED := 420.0      # degrees a second while held
+const SPIN_SPEED := 600.0
+const FLIP_CLEAN := 32.0
+const FLIP_CRASH := 75.0
+const SPIN_CLEAN := 70.0
+## JUMP: hold to crouch and charge, let go to pop. A charged jump on a ramp
+## adds to the ramp's launch.
+const JUMP_CHARGE_TIME := 0.5
+const JUMP_MIN := 2.4          # m/s upward from a tap
+const JUMP_MAX := 7.6          # from a full charge
+## The JIGRA meter fills with every stunt's views. Full = SCENE ON: double
+## views, a boost, and the trick buttons become super tricks.
+const JIGRA_MAX := 2500.0
+const SCENE_TIME := 10.0
+const UBER := {"no_hands": "bhangra", "superman": "handstand", "seat_stand": "handstand", "selfie": "vlog"}
+const TWEAK_RATE := 260.0      # views a second for holding a grab past its minimum
+
+## time: the least time a trick takes (hold the button longer to "tweak" it
+## for more; let go before landing); steer: whether you can still steer.
 const TRICKS := {
 	"no_hands": {"label": "NO HANDS", "time": 0.55, "views": 150, "steer": false, "key": "J"},
 	"superman": {"label": "SUPERMAN", "time": 0.9, "views": 400, "steer": false, "key": "K"},
 	"seat_stand": {"label": "SEAT STAND", "time": 1.2, "views": 650, "steer": false, "key": "L"},
 	"selfie": {"label": "SELFIE", "time": 0.8, "views": 300, "steer": true, "key": "U"},
+	# The super tricks, only while the scene is on.
+	"bhangra": {"label": "BHANGRA ON THE SEAT", "time": 0.8, "views": 1200, "steer": false, "key": "J", "uber": true},
+	"handstand": {"label": "HANDSTAND", "time": 1.0, "views": 1500, "steer": false, "key": "K", "uber": true},
+	"vlog": {"label": "ULTA VLOG", "time": 0.9, "views": 1300, "steer": false, "key": "U", "uber": true},
 }
 
 const CRASH_LINES := {
 	"cart": "FRUIT EVERYWHERE", "eggs": "BUN KABAB BAN GAYA", "rickshaw": "RICKSHAW 1, SHANI 0",
 	"wrongway": "HE WAS ON THE WRONG SIDE!", "wagon": "WAGON WINS", "bus": "THE BUS DIDN'T EVEN NOTICE",
 	"baraat": "GATECRASHED THE BARAAT", "ped": "SORRY UNCLE!", "goats": "BAKRI 1, SHANI 0",
-	"looped": "LOOPED IT!", "bailed": "BAILED!", "backflop": "ACCIDENTAL BACKFLIP", "faceplant": "FACE PLANT",
+	"looped": "LOOPED IT!", "flipfail": "LANDED ON HIS HEAD", "bailed": "BAILED!", "backflop": "ACCIDENTAL BACKFLIP", "faceplant": "FACE PLANT",
 }
 const PRAISE := ["WAH PAI!", "OYE HOYE!", "SCENE ON HAI!", "KAMAAL!", "JIGAR!", "PINDI BOYS!", "UFF!", "VIRAL!"]
 const LAUGH := ["HAHAHA!", "OYE HOYE!", "PAGAL HAI?", "HELMET KAHAN HAI?", "AMMI KO BATAUN?", "BACH KE!"]
@@ -126,6 +151,14 @@ var best_combo := 0
 var tricks_done := 0
 var finish_time := 0.0
 
+var flip := 0.0               # air rotation so far, degrees (+ = backflip)
+var spin := 0.0
+var jump_charge := 0.0
+var _prev_jump := false
+var trick_held := false      # still holding the grab button
+var jigra := 0.0
+var scene_t := 0.0           # seconds of SCENE ON left
+var moves: Array = []        # "jump", "flip", "spin", "scene" (levels.gd)
 var _prev_lift := false
 var _pick := 0               # rotates through shout lines
 var _chappal_clock := 0.0
@@ -136,6 +169,7 @@ func setup(lvl: Dictionary) -> void:
 	bike = BIKES[String(lvl.bike)]
 	length = float(lvl.length)
 	unlocked = lvl.get("tricks", [])
+	moves = lvl.get("moves", [])
 	var w := World.build(lvl)
 	hazards = w.hazards
 	buildings = w.buildings
@@ -198,6 +232,11 @@ func _step_bike(dt: float, input: Dictionary) -> void:
 	# neither the bike settles at cruising speed. On the back wheel the bike
 	# can't go flat out.
 	var top: float = bike.wheelie_top if wheelie else bike.top
+	if scene_t > 0.0:
+		top *= 1.18          # SCENE ON: the silencer's on fire, so is Shani
+		scene_t -= dt
+		if scene_t <= 0.0:
+			log_event("scene_off")
 	if input.get("gas", false):
 		v += float(bike.accel) * dt * (1.0 - 0.6 * v / top)
 	elif input.get("brake", false):
@@ -217,6 +256,11 @@ func _step_bike(dt: float, input: Dictionary) -> void:
 	var steer := float(input.get("lane", 0.0))
 	if trick != "" and not TRICKS[trick].steer:
 		steer = 0.0
+	# In the air a player's UP/DOWN flip the bike instead of steering. (The
+	# bots send a separate "flip" input and can still steer.)
+	var air_lock: bool = airborne and "flip" in moves and not input.has("flip")
+	if air_lock:
+		steer = 0.0
 	var grip := 0.5 if level.get("rain", false) else 1.0
 	if airborne:
 		grip *= 0.5
@@ -225,15 +269,23 @@ func _step_bike(dt: float, input: Dictionary) -> void:
 		skid_t -= dt
 		want = skid_dir * 3.0
 		grip = 0.35
-	vd = move_toward(vd, want, LAT_ACCEL * grip * dt)
+	if not air_lock:
+		vd = move_toward(vd, want, LAT_ACCEL * grip * dt)
+	# (In the air the bike keeps drifting the way it was going.)
 	d += vd * dt
 	if d < 0.45 or d > World.ROAD_W - 0.45:
 		d = clampf(d, 0.45, World.ROAD_W - 0.45)
 		vd = 0.0
+	_step_jump(input)
 	_step_pitch(dt, input)
-	# Tricks.
-	var want_trick := String(input.get("trick", ""))
+	# Tricks: a tap does the trick for its minimum time; holding the button
+	# keeps the pose going ("tweak") for more views until you let go.
+	var tap := String(input.get("trick", ""))
+	var held := String(input.get("trick_hold", ""))
+	var want_trick := held if held != "" else tap
 	if want_trick != "" and trick == "" and want_trick in unlocked and (airborne or pitch > 15.0):
+		if scene_t > 0.0 and UBER.has(want_trick):
+			want_trick = UBER[want_trick]
 		if airborne and air_left() < float(TRICKS[want_trick].time) * 0.75:
 			# Not enough air to finish it: refuse, and say why.
 			log_event("too_low %s" % want_trick)
@@ -241,10 +293,14 @@ func _step_bike(dt: float, input: Dictionary) -> void:
 		else:
 			trick = want_trick
 			trick_t = 0.0
+			trick_held = held != ""
 			log_event("trick_start %s" % trick)
 	if trick != "":
 		trick_t += dt
-		if trick_t >= float(TRICKS[trick].time):
+		if trick_held and held == "":
+			trick_held = false
+		var min_t: float = float(TRICKS[trick].time)
+		if trick_t >= min_t and not trick_held:
 			_trick_done()
 	if input.get("pop", false) and pop_t <= 0.0 and level.get("pop", false):
 		_pop()
@@ -260,7 +316,12 @@ func _step_pitch(dt: float, input: Dictionary) -> void:
 		air_time += dt
 		vh -= GRAVITY * dt
 		h += vh * dt
-		pitch = clampf(pitch + (50.0 if lift else -55.0) * dt, 0.0, 45.0)
+		pitch = move_toward(pitch, 0.0, 55.0 * dt)
+		if "flip" in moves:
+			var f_in: float = float(input.get("flip", input.get("lane", 0.0)))
+			flip += FLIP_SPEED * clampf(f_in, -1.0, 1.0) * dt
+		if "spin" in moves:
+			spin += SPIN_SPEED * clampf(float(input.get("spin", 0.0)), -1.0, 1.0) * dt
 		if h <= 0.0:
 			_land()
 		_prev_lift = lift
@@ -314,7 +375,10 @@ func _step_pitch(dt: float, input: Dictionary) -> void:
 
 func _launch(kind: String) -> void:
 	var power := 0.55 if kind == "ramp" else 0.32
-	vh = power * v * float(bike.launch) + (1.2 if pitch > 20.0 else 0.0)
+	vh = power * v * float(bike.launch) + (1.2 if pitch > 20.0 else 0.0) + jump_charge * 3.0
+	if jump_charge > 0.5:
+		_element("PRELOAD", 120)
+	jump_charge = 0.0
 	h = 0.02
 	airborne = true
 	air_time = 0.0
@@ -329,6 +393,12 @@ func _land() -> void:
 	h = 0.0
 	vh = 0.0
 	airborne = false
+	if not _land_rotations():
+		return
+	if trick != "" and trick_held:
+		# Still holding the grab as the wheels touch: you can't ride like that.
+		trick_held = false
+		_sloppy()
 	if trick != "":
 		if trick_t >= float(TRICKS[trick].time) * 0.7:
 			_element("JUST MADE IT", 100)
@@ -348,6 +418,60 @@ func _land() -> void:
 		if air_time > 0.7:
 			_element("CLEAN LANDING", 60)
 	pot += 80.0 * air_time
+
+
+## Scores the flips and spins of a jump. Returns false if it was a crash.
+func _land_rotations() -> bool:
+	var f := flip
+	var sp := absf(spin)
+	flip = 0.0
+	spin = 0.0
+	var residual := fposmod(f + 180.0, 360.0) - 180.0
+	var full := int(round(absf(f) / 360.0))
+	if absf(residual) > FLIP_CRASH:
+		_crash("flipfail")
+		return false
+	if absf(residual) > FLIP_CLEAN:
+		_sloppy()
+		return true
+	if full >= 1:
+		var back := f > 0.0
+		var name: String = ["", "", "DOUBLE ", "TRIPLE ", "QUADRUPLE "][mini(full, 4)] + ("BACKFLIP" if back else "FRONTFLIP")
+		_element(name, int((500 if back else 600) * full * (1.0 + 0.5 * (full - 1))))
+		log_event("flip %d %s" % [full, "back" if back else "front"])
+	var turns := int(round(sp / 360.0))
+	if absf(sp - turns * 360.0) > SPIN_CLEAN:
+		_sloppy()
+	elif turns >= 1:
+		_element("%d" % (turns * 360), int(350 * turns * (1.0 + 0.4 * (turns - 1))))
+		log_event("spin %d" % turns)
+	return true
+
+
+## JUMP: hold to crouch (the bar fills), let go to pop up. Charge on a ramp
+## and it adds to the ramp's launch (see _launch).
+func _step_jump(input: Dictionary) -> void:
+	var held: bool = input.get("jump", false) and "jump" in moves
+	if airborne:
+		jump_charge = 0.0
+		_prev_jump = held
+		return
+	if held:
+		jump_charge = minf(1.0, jump_charge + get_physics_dt() / JUMP_CHARGE_TIME)
+	elif _prev_jump and jump_charge > 0.0:
+		vh = lerpf(JUMP_MIN, JUMP_MAX, jump_charge)
+		h = 0.02
+		airborne = true
+		air_time = 0.0
+		wheelie_time = 0.0
+		pitch_v = 0.0
+		log_event("hop %.2f" % jump_charge)
+		jump_charge = 0.0
+	_prev_jump = held
+
+
+static func get_physics_dt() -> float:
+	return 1.0 / 60.0
 
 
 ## The wheelie angle a held WHEELIE aims for right now.
@@ -375,7 +499,10 @@ func _sloppy() -> void:
 func _trick_done() -> void:
 	var tr: Dictionary = TRICKS[trick]
 	tricks_done += 1
-	_element(String(tr.label), int(tr.views))
+	var tweak := maxf(0.0, trick_t - float(tr.time))
+	_element(String(tr.label), int(tr.views + tweak * TWEAK_RATE))
+	if tweak > 0.3:
+		popups.append({"x": 0.4, "d": d, "h": 3.4, "text": "TWEAKED! +%d" % int(tweak * TWEAK_RATE), "t0": t, "col": Color(0.6, 1, 0.9), "rel": true})
 	log_event("trick %s" % trick)
 	if trick == "selfie":
 		for o in hazards:
@@ -503,6 +630,10 @@ func _collide() -> void:
 
 
 func _crash(cause: String) -> void:
+	flip = 0.0
+	spin = 0.0
+	jump_charge = 0.0
+	trick_held = false
 	crash_t = CRASH_TIME
 	crash_cause = cause
 	crash_v = v
@@ -571,6 +702,14 @@ func _element(label: String, value: int) -> void:
 	# multiplier: variety is what makes a combo big.
 	var repeats := chain.count(label)
 	pot += value * pow(0.5, repeats)
+	if "scene" in moves and scene_t <= 0.0:
+		jigra += value * pow(0.5, repeats)
+		if jigra >= JIGRA_MAX:
+			jigra = 0.0
+			scene_t = SCENE_TIME
+			log_event("scene_on")
+			popups.append({"x": 0.0, "d": d, "h": 3.8, "text": "SCENE ON!", "t0": t, "col": Color(1, 0.4, 0.9), "rel": true})
+			_cheer_near(PRAISE)
 	if repeats == 0:
 		mult = mini(mult + 1, MAX_MULT)
 	chain.append(label)
@@ -592,7 +731,7 @@ func _step_chain(dt: float) -> void:
 func _bank() -> void:
 	if pot <= 0.0:
 		return
-	var gain := int(round(pot * maxi(mult, 1)))
+	var gain := int(round(pot * maxi(mult, 1) * (2.0 if scene_t > 0.0 else 1.0)))
 	views += gain
 	best_combo = maxi(best_combo, gain)
 	log_event("bank %d %d" % [gain, mult])

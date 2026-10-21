@@ -167,6 +167,17 @@ func _play_hud() -> void:
 	draw_rect(Rect2(bar.position, Vector2(bar.size.x * f, bar.size.y)), Color(0.3, 0.9, 0.4) if _shown_views >= target else Color(1, 0.75, 0.2))
 	for m in [0.5, 0.75, 1.0]:
 		_star(Vector2(bar.position.x + bar.size.x * m, bar.position.y + 4), 7.0, Color(1, 0.85, 0.2) if _shown_views >= target * m * 2.0 else Color(0.5, 0.5, 0.5))
+	# The JIGRA meter: fills with stunts; full = SCENE ON.
+	if "scene" in ride.moves:
+		var jy := vy + 98.0
+		var jw := 310.0
+		draw_rect(Rect2(vx - 10, jy - 6, 330, 34), Color(0, 0, 0, 0.35))
+		var on: bool = float(ride.scene_t) > 0.0
+		var jf: float = float(ride.scene_t) / Ride.SCENE_TIME if on else float(ride.jigra) / Ride.JIGRA_MAX
+		draw_rect(Rect2(vx, jy + 12, jw, 10), Color(0, 0, 0, 0.5))
+		var jc := Color.from_hsv(fmod(ride.t * 0.8, 1.0), 0.7, 1.0) if on else Color(1, 0.4, 0.85)
+		draw_rect(Rect2(vx, jy + 12, jw * jf, 10), jc)
+		_text(Vector2(vx, jy + 8), "SCENE ON!  x2 VIEWS" if on else "JIGRA", 15, Color(1, 1, 1), 4)
 	# Abbu's patience: one chappal per crash left.
 	var px := sz.x - 24.0
 	_text(Vector2(px, 32), "ABBU'S PATIENCE", 14, Color(1, 1, 1), 4, 2)
@@ -181,7 +192,7 @@ func _play_hud() -> void:
 		var line := " + ".join(tail)
 		if labels.size() > tail.size():
 			line = "... + " + line
-		var cy := 130.0 if portrait else 40.0
+		var cy := 175.0 if portrait else 40.0
 		_text(Vector2(cx, cy), line, 18, Color(1, 1, 1), 5, 1)
 		var big := "%s  x%d" % [Ride.fmt(int(ride.pot)), maxi(1, int(ride.mult))]
 		_text(Vector2(cx, cy + 40), big, 34, Color(1, 0.88, 0.25), 7, 1)
@@ -200,7 +211,7 @@ func _play_hud() -> void:
 	# Progress to home.
 	var pw := sz.x * 0.4
 	var pbx := sz.x / 2.0 - pw / 2.0
-	var pby := sz.y - (20.0 if not (portrait and show_touch) else 300.0)
+	var pby := sz.y - (20.0 if not (portrait and show_touch) else 360.0)
 	draw_rect(Rect2(pbx, pby, pw, 6), Color(0, 0, 0, 0.45))
 	var pf := clampf(float(ride.x) / float(ride.length), 0.0, 1.0)
 	draw_rect(Rect2(pbx, pby, pw * pf, 6), Color(1, 1, 1, 0.85))
@@ -227,6 +238,10 @@ func _play_hud() -> void:
 			keys.append("[%s] %s" % [Ride.TRICKS[k].key, Ride.TRICKS[k].label])
 		if ride.level.get("pop", false):
 			keys.append("[X] PATAAKHA")
+		if "jump" in ride.moves:
+			keys.push_front("[SHIFT] JUMP")
+		if "flip" in ride.moves:
+			keys.append("air: UP/DOWN flip" + (", LEFT/RIGHT spin" if "spin" in ride.moves else ""))
 		if not keys.is_empty():
 			_text(Vector2(170, sz.y - 40), "   ".join(keys), 15, Color(1, 1, 1, 0.85), 4)
 	# Countdown and the tip.
@@ -271,6 +286,16 @@ func _coach() -> Array:
 		return []
 	var early := level_index <= 3
 	var unlocked: Array = r.unlocked
+	var mv: Array = r.moves
+	if r.airborne:
+		var left: float = r.air_left()
+		var residual: float = fposmod(float(r.flip) + 180.0, 360.0) - 180.0
+		if absf(float(r.flip)) > 20.0 and left < 0.45 and absf(residual) > r.FLIP_CLEAN:
+			return ["Straighten up! Land level", "up" if residual < 0.0 else "down"]
+		if String(r.trick) != "" and r.trick_held and left < 0.35:
+			return ["LET GO to land!", ""]
+		if "flip" in mv and absf(float(r.flip)) < 10.0 and left > 360.0 / r.FLIP_SPEED + 0.2 and (early or _done_count("flip") < 2):
+			return ["NOW! " + ("Hold BACK FLIP" if show_touch else "Hold UP: backflip"), "up"]
 	# In the air: the best trick that still fits.
 	if r.airborne and String(r.trick) == "" and not unlocked.is_empty():
 		var left: float = r.air_left()
@@ -308,6 +333,8 @@ func _coach() -> Array:
 		match kind:
 			"breaker", "ramp":
 				var name := "RAMP" if kind == "ramp" else "SPEED BREAKER"
+				if kind == "ramp" and "jump" in mv:
+					return ["RAMP! Hold JUMP as you hit it for big air", "jump"]
 				if unlocked.is_empty():
 					return [name + " ahead: hold on!", ""]
 				return [name + " ahead: jump, then " + _press(unlocked[mini(unlocked.size() - 1, 1)]) + " in the air", ""]
@@ -327,6 +354,10 @@ func _coach() -> Array:
 		return ["Both wheels down = combo banked", ""]
 	if level_index == 0 and float(r.t) > 4.0 and float(r.pitch) < 2.0 and _done_count("wheelie") < 3:
 		return ["Hold WHEELIE to pop the front up", "wheelie"]
+	if "jump" in mv and float(r.t) > 3.0 and float(r.pitch) < 2.0 and _done_count("hop") < 3:
+		if float(r.jump_charge) > 0.0:
+			return ["Charging... let go to JUMP!", "jump"]
+		return ["Hold JUMP, let go to hop (then do tricks!)", "jump"]
 	return []
 
 
@@ -341,6 +372,9 @@ func _done_count(what: String) -> int:
 		var ev := String(e[1])
 		if what == "wheelie":
 			if ev == "front_down":
+				n += 1
+		elif what == "flip" or what == "hop" or what == "spin":
+			if ev.begins_with(what + " "):
 				n += 1
 		elif ev == "trick " + what:
 			n += 1
@@ -371,7 +405,7 @@ func _chat_box(portrait: bool) -> void:
 	var sz := size
 	var w := 300.0 if not portrait else 420.0
 	var x := sz.x - w - 16.0
-	var y := 90.0 if not portrait else 190.0
+	var y := 90.0 if not portrait else 262.0
 	if _chat.is_empty():
 		return
 	draw_rect(Rect2(x - 8, y - 22, w + 16, 24), Color(0.85, 0.1, 0.1, 0.85))
@@ -439,32 +473,46 @@ func _chappal_icon(c: Vector2, used: bool) -> void:
 func _touch_buttons() -> void:
 	var sz := size
 	var portrait := sz.y > sz.x
-	var r := 76.0 if portrait else 56.0
+	var r := 66.0 if portrait else 56.0
 	var bottom := sz.y - r - 24.0
 	var defs: Array = []
 	# Left thumb: lanes and the brake. Right thumb: the wheelie (big), tricks
 	# and the pataakha. On touch screens the throttle is automatic: nobody
 	# can hold gas and wheelie with one thumb.
-	defs.append(["up", Vector2(r + 24.0, bottom - r * 2.3), "UP"])
-	defs.append(["down", Vector2(r + 24.0, bottom), "DOWN"])
-	defs.append(["brake", Vector2(r * 3.4 + 24.0, bottom), "BRAKE"])
+	# In the air the left buttons turn into flip and spin buttons.
+	var air: bool = ride.airborne
+	var mv: Array = ride.moves
+	defs.append(["up", Vector2(r + 24.0, bottom - r * 2.3), "BACK\nFLIP" if air and "flip" in mv else "UP"])
+	defs.append(["down", Vector2(r + 24.0, bottom), "FRONT\nFLIP" if air and "flip" in mv else "DOWN"])
+	defs.append(["brake", Vector2(r * 3.4 + 24.0, bottom), "SPIN" if air and "spin" in mv else "BRAKE"])
 	defs.append(["wheelie", Vector2(sz.x - r * 1.25 - 24.0, bottom - r * 0.25), "WHEELIE"])
-	defs.append(["menu_btn", Vector2(sz.x / 2.0, (196.0 if portrait else 112.0)), "II"])
+	var wheelie_c := Vector2(sz.x - r * 1.25 - 24.0, bottom - r * 0.25)
+	if "jump" in mv:
+		# Portrait: JUMP sits right above WHEELIE (one thumb slides between
+		# them). Landscape has room to put it beside.
+		var jc := Vector2(wheelie_c.x, wheelie_c.y - r * 2.45) if portrait else Vector2(sz.x - r * 4.0 - 24.0, bottom - r * 0.1)
+		defs.append(["jump", jc, "JUMP"])
+	defs.append(["menu_btn", Vector2(sz.x / 2.0 + (40.0 if portrait else 0.0), (58.0 if portrait else 112.0)), "II"])
 	var extra: Array = []
 	var trick_actions := {"no_hands": "trick_1", "superman": "trick_2", "seat_stand": "trick_3", "selfie": "trick_4"}
 	for k in ride.unlocked:
-		extra.append([trick_actions[k], String(Ride.TRICKS[k].label).replace(" ", "\n")])
+		var kk: String = Ride.UBER[k] if float(ride.scene_t) > 0.0 and Ride.UBER.has(k) else k
+		extra.append([trick_actions[k], String(Ride.TRICKS[kk].label).split(" ")[0] if kk != k else String(Ride.TRICKS[kk].label).replace(" ", "\n")])
 	if ride.level.get("pop", false):
 		extra.append(["pop", "PATAA\nKHA"])
 	for i in extra.size():
 		# An arc of small buttons round the wheelie button.
-		var a := PI * (1.04 + 0.2 * i)
-		var c := Vector2(sz.x - r * 1.25 - 24.0, bottom - r * 0.25)
-		defs.append([extra[i][0], c + Vector2(cos(a), sin(a)) * r * 2.55 + Vector2(r * 0.4, 0), extra[i][1]])
+		# A row of small buttons: above BRAKE (portrait), above WHEELIE/JUMP
+		# (landscape).
+		var c := Vector2(r * 3.4 + 24.0 + i * r * 1.55, bottom - r * 2.35) if portrait \
+			else Vector2(sz.x - r * 0.85 - 24.0 - i * r * 1.6, bottom - r * 2.55)
+		defs.append([extra[i][0], c, extra[i][1]])
 	for dd in defs:
 		var rad := r if not (String(dd[0]).begins_with("trick") or dd[0] == "pop") else r * 0.74
 		if dd[0] == "wheelie":
 			rad = r * 1.25
+		elif dd[0] == "jump":
+			rad = r * 1.05
 		elif dd[0] == "menu_btn":
 			rad = r * 0.5
 		var pressed: bool = dd[0] != "menu_btn" and Input.is_action_pressed(String(dd[0]))
@@ -477,6 +525,11 @@ func _touch_buttons() -> void:
 		draw_arc(dd[1], rad, 0, TAU, 32, Color(1, 1, 1, 0.75), 3.0)
 		var lines := String(dd[2]).split("\n")
 		var fs := 24 if portrait else 18
+		var longest := 0
+		for ln in lines:
+			longest = maxi(longest, ln.length())
+		if longest > 6 and rad < r:
+			fs = int(fs * 6.5 / longest)     # small buttons: long words shrink to fit
 		for li in lines.size():
 			_text(dd[1] + Vector2(0, fs * 0.4 + (li - (lines.size() - 1) / 2.0) * fs * 1.1), lines[li], fs, Color(1, 1, 1, 0.95), 4, 1)
 		_buttons.append([String(dd[0]), dd[1], rad])
@@ -657,12 +710,17 @@ func show_how_to() -> void:
 		"WHEELIE: %s. The bike balances itself, but the needle by the bike creeps toward red. LET GO before red or you loop it." % wheelie,
 		"COMBOS: every stunt adds views and the multiplier. Different stunts = bigger multiplier. Both wheels down for a moment = combo banked.",
 		"TRICKS: %s NO HANDS, SUPERMAN, SEAT STAND or SELFIE while in the air (speed breakers, ramps) or on one wheel. Bigger tricks need bigger air: if there isn't enough, it says TOO LOW." % t,
+		"JUMP: hold %s to crouch, let go to hop. Hold it as you hit a ramp for huge air." % ("JUMP" if show_touch else "SHIFT"),
+		"IN THE AIR: %s for a backflip, %s for a frontflip (only while held), %s to spin a 360. Land LEVEL or you crash." % [
+			"hold BACK FLIP" if show_touch else "hold UP", "FRONT FLIP" if show_touch else "DOWN", "SPIN" if show_touch else "LEFT/RIGHT"],
+		"GRABS: hold a trick button to keep the pose (TWEAK = more views). Let go before landing.",
+		"JIGRA: stunts fill the meter. Full = SCENE ON! Double views, a boost, and SUPER TRICKS on the trick buttons.",
 		"Land before a trick finishes = SLOPPY (combo lost). Hit traffic = crash. 3 crashes and Abbu takes the keys.",
 		"Change lane with the %s. Wheelie over potholes. PATAAKHA scares pigeons and goats." % lanes,
 	]
 	if show_touch:
 		lines.append("The bike speeds up by itself. BRAKE to slow down. II pauses.")
 	for ln in lines:
-		_label(box, ln, 19, Color(1, 1, 1), false)
+		_label(box, ln, 16, Color(1, 1, 1), false)
 	var back := _button(box, "Got it", func() -> void: show_menu())
 	back.grab_focus.call_deferred()

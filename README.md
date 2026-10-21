@@ -16,7 +16,10 @@ A side-on stunt rider with an angled view, in the spirit of the old excite-style
 | Left / A | Brake (the rear brake also drops a wheelie) |
 | Up, Down / W, S | Change lane |
 | Space | Wheelie: hold it and the bike balances itself; let go before the needle by the bike reaches red |
-| J K L U | Tricks: NO HANDS, SUPERMAN, SEAT STAND, SELFIE (in the air or on the back wheel) |
+| Shift / C | JUMP: hold to crouch, let go to hop (hold into a ramp for huge air) |
+| Up / Down (in the air) | Backflip / frontflip (only while held; land level!) |
+| Left / Right (in the air) | Spin a 360 |
+| J K L U | Grabs: NO HANDS, SUPERMAN, SEAT STAND, SELFIE. Hold to tweak, let go before landing |
 | X | PATAAKHA: the "tuned" silencer backfires |
 | R / Esc / Enter | Retry / menu / next ride |
 
@@ -28,6 +31,12 @@ A side-on stunt rider with an angled view, in the spirit of the old excite-style
 - **macOS / Linux:** `curl -fsSL https://raw.githubusercontent.com/ahab94/pindi-boy/main/install.sh | bash`
 - **Windows (PowerShell):** `irm https://raw.githubusercontent.com/ahab94/pindi-boy/main/install.ps1 | iex`
 - Or grab a zip from [Releases](https://github.com/ahab94/pindi-boy/releases).
+
+## Tricks
+- **Get air:** speed breakers, plank ramps, or your own JUMP (hold, let go).
+- **In the air:** flips (Up/Down), spins (Left/Right) and grabs (J K L U), all at once if there's time. Land level and with whole spins.
+- **JIGRA meter:** stunts fill it. Full = **SCENE ON!**: double views, a boost, and super tricks (BHANGRA ON THE SEAT, HANDSTAND, ULTA VLOG) on the grab buttons.
+- **Wheelies** link jumps into one big combo.
 
 ## How scoring works
 - Stunts add views to a **combo pot** and raise the **multiplier**. Repeats are worth half as much each time and don't raise it, so variety pays.
@@ -67,6 +76,7 @@ Credits are in [CREDITS.md](CREDITS.md).
 
 ## Roadmap
 - [x] v0.1.0: 10 rides, mobile touch controls, bots and tests, synthesized Pothohari audio, 10 Shorts and a trailer
+- [x] v0.2.0: the trick update (jump, flips, spins, held grabs, the JIGRA meter and SCENE ON super tricks, smoother animation)
 - [x] v0.1.1: browser sound fixed, assisted wheelies, a gauge on the bike, forgiving tricks, a coach and a How to play page
 - [ ] Tune the feel from players' feedback
 - [ ] More people and vehicle detail in the 2D art

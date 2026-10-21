@@ -47,10 +47,13 @@ func pen(origin: Vector2, scale: float, rotation := 0.0, mirror := 1.0) -> void:
 
 
 func p(x: float, y: float) -> Vector2:
+	# flip may be fractional (a spin squashes the drawing sideways); its sign
+	# mirrors, and rotation follows the mirroring.
 	var lx := x * flip
 	var ly := y * sy
-	var cs := cos(rot * flip)
-	var sn := sin(rot * flip)
+	var sgn := 1.0 if flip >= 0.0 else -1.0
+	var cs := cos(rot * sgn)
+	var sn := sin(rot * sgn)
 	return o + Vector2(lx * cs - ly * sn, -(lx * sn + ly * cs)) * s
 
 
@@ -330,16 +333,40 @@ const POSES := {
 	"seat_stand": {"hip": Vector2(0.34, 1.62), "knee": Vector2(0.46, 1.2), "foot": Vector2(0.34, 0.8),
 		"shoulder": Vector2(0.38, 2.22), "elbow": Vector2(0.74, 2.42), "hand": Vector2(1.06, 2.58),
 		"far_elbow": Vector2(0.04, 2.42), "far_hand": Vector2(-0.28, 2.58), "head": Vector2(0.42, 2.45)},
+	# Super tricks (SCENE ON).
+	"bhangra": {"hip": Vector2(0.34, 1.62), "knee": Vector2(0.72, 1.55), "foot": Vector2(0.64, 1.18),
+		"shoulder": Vector2(0.38, 2.22), "elbow": Vector2(0.62, 2.5), "hand": Vector2(0.7, 2.86),
+		"far_elbow": Vector2(0.12, 2.46), "far_hand": Vector2(0.02, 2.8), "head": Vector2(0.44, 2.46)},
+	"handstand": {"hip": Vector2(0.78, 2.15), "knee": Vector2(0.7, 2.6), "foot": Vector2(0.6, 3.02),
+		"shoulder": Vector2(0.95, 1.5), "elbow": Vector2(1.0, 1.28), "hand": Vector2(1.03, 1.06),
+		"far_elbow": Vector2(0.98, 1.28), "far_hand": Vector2(1.0, 1.06), "head": Vector2(1.1, 1.34)},
+	"vlog": {"hip": Vector2(0.44, 0.86), "knee": Vector2(0.06, 0.86), "foot": Vector2(0.18, 0.42),
+		"shoulder": Vector2(0.5, 1.42), "elbow": Vector2(0.28, 1.64), "hand": Vector2(0.08, 1.9),
+		"far_elbow": Vector2(0.62, 1.15), "far_hand": Vector2(0.74, 0.92), "head": Vector2(0.46, 1.65)},
+	"crouch": {"hip": Vector2(0.3, 0.8), "knee": Vector2(0.72, 0.72), "foot": Vector2(0.62, 0.42),
+		"shoulder": Vector2(0.66, 1.22), "elbow": Vector2(0.88, 1.08), "hand": Vector2(1.03, 1.04),
+		"far_elbow": Vector2(0.84, 1.08), "far_hand": Vector2(1.0, 1.04), "head": Vector2(0.8, 1.42)},
 	"selfie": {"hip": Vector2(0.36, 0.86), "knee": Vector2(0.76, 0.84), "foot": Vector2(0.62, 0.42),
 		"shoulder": Vector2(0.56, 1.42), "elbow": Vector2(0.88, 1.58), "hand": Vector2(1.22, 1.86),
 		"far_elbow": Vector2(0.8, 1.22), "far_hand": Vector2(1.0, 1.06), "head": Vector2(0.62, 1.64)},
 }
 
 
+## Set by the view to a blended set of joints (smooth pose changes); used
+## instead of POSES[pose] when not empty.
+var pose_override := {}
+
+
+func joints(pose: String) -> Dictionary:
+	if not pose_override.is_empty():
+		return pose_override
+	return POSES.get(pose, POSES.ride)
+
+
 ## Shani on the bike, in the bike's pen frame. Far limbs first (darker),
 ## then the bike is drawn by the caller, then call shani_front().
 func shani_back(pose: String) -> void:
-	var j: Dictionary = POSES.get(pose, POSES.ride)
+	var j: Dictionary = joints(pose)
 	limb(j.hip, j.knee, 0.2, KAMEEZ_DARK.lightened(0.1))
 	limb(j.knee, j.foot + Vector2(0.06, 0.02), 0.16, KAMEEZ_DARK.lightened(0.1))
 	limb(j.shoulder, j.far_elbow, 0.12, KAMEEZ_DARK)
@@ -349,7 +376,7 @@ func shani_back(pose: String) -> void:
 
 
 func shani_front(pose: String, t: float, speed: float, mood := "") -> void:
-	var j: Dictionary = POSES.get(pose, POSES.ride)
+	var j: Dictionary = joints(pose)
 	var hip: Vector2 = j.hip
 	var sh: Vector2 = j.shoulder
 	var light := KAMEEZ.lightened(0.12)
@@ -410,7 +437,7 @@ func shani_front(pose: String, t: float, speed: float, mood := "") -> void:
 	var wrist := el.lerp(hand, 0.82)
 	limb(el, wrist, 0.11, KAMEEZ)
 	circle(hand.x, hand.y, 0.055, SKIN)
-	if pose == "selfie":
+	if pose == "selfie" or pose == "vlog":
 		poly([hand + Vector2(-0.03, -0.02), hand + Vector2(0.06, 0.05), hand + Vector2(0.02, 0.18), hand + Vector2(-0.07, 0.11)], Color(0.1, 0.1, 0.12))
 		if fmod(t, 0.5) < 0.12:
 			circle(hand.x + 0.0, hand.y + 0.08, 0.16, Color(1, 1, 1, 0.8))

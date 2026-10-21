@@ -25,6 +25,11 @@ func _initialize() -> void:
 	_warden()
 	_chappal()
 	_same_street()
+	_jump_and_flip()
+	_flip_fail()
+	_spin()
+	_held_grab()
+	_scene_on()
 	print("GAME OK" if fails == 0 else "GAME FAILED (%d)" % fails)
 	quit(1 if fails else 0)
 
@@ -211,6 +216,74 @@ func _chappal() -> void:
 	run(r, 12.0, {"gas": false})
 	check(r.events.any(func(e) -> bool: return e[1] == "chappal"), "sitting still gets you chappal'd")
 	check(r.chappals.size() > 0, "Ammi throws")
+
+
+func _jump_and_flip() -> void:
+	var r := ride_on(bare({"moves": ["jump", "flip"]}))
+	run(r, 2.0, {"gas": true})
+	run(r, 0.5, {"gas": true, "jump": true})
+	check(r.jump_charge > 0.9, "holding JUMP charges it")
+	r.step(1.0 / 60.0, {"gas": true})
+	check(r.airborne and r.vh > 6.0, "letting go of JUMP hops (vh %.1f)" % r.vh)
+	var flipped := false
+	for i in 300:
+		var inp := {"gas": true}
+		if r.airborne and r.flip < 352.0:
+			inp.lane = 1.0
+		r.step(1.0 / 60.0, inp)
+		if not r.airborne and r.events.any(func(e) -> bool: return String(e[1]).begins_with("flip 1")):
+			flipped = true
+			break
+	check(flipped and r.crashes == 0, "a full charged hop has room for a clean backflip")
+
+
+func _flip_fail() -> void:
+	var r := ride_on(bare({"moves": ["jump", "flip"]}))
+	run(r, 2.0, {"gas": true})
+	run(r, 0.5, {"gas": true, "jump": true})
+	r.step(1.0 / 60.0, {"gas": true})
+	for i in 300:
+		r.step(1.0 / 60.0, {"gas": true, "lane": 1.0 if r.airborne and r.flip < 180.0 else 0.0})
+		if r.crashes > 0 or (not r.airborne and r.flip == 0.0 and r.air_time > 0.3):
+			break
+	check(r.crashes == 1 and r.crash_cause == "flipfail", "landing upside down is a crash (%s)" % r.crash_cause)
+
+
+func _spin() -> void:
+	var r := ride_on(bare({"moves": ["jump", "spin"]}))
+	run(r, 2.0, {"gas": true})
+	run(r, 0.5, {"gas": true, "jump": true})
+	r.step(1.0 / 60.0, {"gas": true})
+	for i in 300:
+		r.step(1.0 / 60.0, {"gas": true, "spin": 1.0 if r.airborne and absf(r.spin) < 355.0 else 0.0})
+		if not r.airborne and r.air_time > 0.3:
+			break
+	check(r.events.any(func(e) -> bool: return String(e[1]) == "spin 1"), "a 360 lands and scores")
+
+
+func _held_grab() -> void:
+	var r := ride_on(bare({"moves": ["jump"], "tricks": ["no_hands"]}))
+	run(r, 2.0, {"gas": true})
+	run(r, 0.5, {"gas": true, "jump": true})
+	r.step(1.0 / 60.0, {"gas": true})
+	# Hold the grab most of the jump, then let go before landing.
+	for i in 300:
+		var hold := r.airborne and r.air_left() > 0.2
+		r.step(1.0 / 60.0, {"gas": true, "trick_hold": "no_hands" if hold else ""})
+		if not r.airborne and r.air_time > 0.3:
+			break
+	check(r.tricks_done == 1 and r.crashes == 0, "a held grab released in time scores")
+	check(r.chain.any(func(c) -> bool: return c == "NO HANDS") or r.views > 150, "with the tweak bonus")
+
+
+func _scene_on() -> void:
+	var r := ride_on(bare({"moves": ["scene"]}))
+	r._element("BIG ONE", int(Ride.JIGRA_MAX) + 10)
+	check(r.scene_t > 0.0, "a full JIGRA meter turns the scene on")
+	var before := r.views
+	r._element("X", 100)
+	r._bank()
+	check(r.views - before >= 2 * (int(Ride.JIGRA_MAX) + 110) * 2 - 10, "the scene doubles banked views")
 
 
 func _same_street() -> void:

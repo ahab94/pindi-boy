@@ -21,6 +21,11 @@ var _hold := 0.0             # the rookie's thumb: lift decisions stick for a mo
 var _lift := false
 var _wheelie_aim := 48.0
 var _rookie_limit := 3.0
+var _air_plan := ""          # "flip1", "flip2", "spin1", "grab", "" (decided at take-off)
+var _flip_aim := 0.0
+var _was_air := false
+var _jump_hold := 0.0
+var _jump_cool := 2.0
 var _rng := RandomNumberGenerator.new()
 
 
@@ -61,6 +66,8 @@ func drive(r, dt: float) -> Dictionary:
 	input.lift = _wheelie(r, dt, danger)
 	input.trick = _trick(r)
 	input.pop = _pop(r)
+	_air(r, input)
+	_jump(r, input, dt, danger)
 	if not director.is_empty():
 		_direct(r, input)
 	return input
@@ -107,6 +114,66 @@ func _direct(r, input: Dictionary) -> void:
 		input.brake = float(r.v) > 5.0
 		input.lift = false
 		input.pop = false         # a pataakha would knock his cap off and stop him
+
+
+# ---------------------------------------------------------------- air moves
+
+## Plans a jump at take-off: a flip (or two) if there's the air for it, else
+## a spin, else a grab; then flies it, stopping the rotation level.
+func _air(r, input: Dictionary) -> void:
+	var mv: Array = r.moves
+	if not r.airborne:
+		_was_air = false
+		_air_plan = ""
+		return
+	input.flip = 0.0          # (bots flip with their own input, and keep steering)
+	if not _was_air:
+		_was_air = true
+		var left: float = r.air_left()
+		var one_flip: float = 360.0 / Ride.FLIP_SPEED
+		var one_spin: float = 360.0 / Ride.SPIN_SPEED
+		_air_plan = "grab"
+		if "flip" in mv and left > 2.0 * one_flip + 0.3 and not rookie:
+			_air_plan = "flip2"
+		elif "flip" in mv and left > one_flip + 0.2 and (not rookie or _rng.randf() < 0.25):
+			_air_plan = "flip1"
+		elif "spin" in mv and left > one_spin + 0.15 and (not rookie or _rng.randf() < 0.25):
+			_air_plan = "spin1"
+		_flip_aim = (720.0 if _air_plan == "flip2" else 360.0) + (_rng.randf_range(-45.0, 45.0) if rookie else 0.0)
+	match _air_plan:
+		"flip1", "flip2":
+			input.trick = ""
+			if float(r.flip) < _flip_aim - 6.0:
+				input.flip = 1.0
+		"spin1":
+			input.trick = ""
+			if absf(float(r.spin)) < 360.0 - 8.0 + (_rng.randf_range(-40.0, 40.0) if rookie else 0.0):
+				input.spin = 1.0
+
+
+## Charged hops on open road, and a preload when a ramp is coming.
+func _jump(r, input: Dictionary, dt: float, danger: bool) -> void:
+	if not "jump" in r.moves or r.airborne:
+		_jump_hold = 0.0
+		return
+	_jump_cool -= dt
+	var ramp_soon := false
+	for o in r.hazards:
+		var dx: float = float(o.x) - float(r.x)
+		if o.kind == "ramp" and dx > 0.0 and dx < float(r.v) * 0.55 and absf(float(o.d) - float(r.d)) < 0.9:
+			ramp_soon = true
+	if ramp_soon and not rookie:
+		input.jump = true
+		return
+	if _jump_hold > 0.0:
+		_jump_hold -= dt
+		input.jump = _jump_hold > 0.0     # let go = hop
+		return
+	var quiet := not danger and not _danger_ahead(r, float(r.d), 3.4) and float(r.pitch) < 2.0
+	if quiet and _jump_cool <= 0.0 and (not rookie or _rng.randf() < 0.01):
+		_jump_hold = 0.5
+		_jump_cool = 4.5 if not rookie else 7.0
+		input.jump = true
 
 
 # ---------------------------------------------------------------- lanes

@@ -243,17 +243,28 @@ func _juice(ev: String) -> void:
 
 func _read_input() -> Dictionary:
 	var trick := ""
+	var held := ""
 	for action in TRICK_KEYS:
 		if Input.is_action_just_pressed(action):
 			trick = TRICK_KEYS[action]
-	# Touch screens get an automatic throttle (see hud.gd _touch_buttons).
+		if Input.is_action_pressed(action) and held == "":
+			held = TRICK_KEYS[action]
+	var air: bool = ride != null and ride.airborne
+	# Touch screens get an automatic throttle (see hud.gd _touch_buttons),
+	# except in the air, where BRAKE spins the bike.
 	var auto_gas: bool = hud.show_touch and not Input.is_action_pressed("brake")
+	var spin := Input.get_axis("brake", "gas")
+	if hud.show_touch:
+		spin = -1.0 if Input.is_action_pressed("brake") else 0.0
 	return {
-		"gas": Input.is_action_pressed("gas") or auto_gas,
-		"brake": Input.is_action_pressed("brake"),
+		"gas": (Input.is_action_pressed("gas") or auto_gas) and not air,
+		"brake": Input.is_action_pressed("brake") and not air,
 		"lane": Input.get_axis("down", "up"),
 		"lift": Input.is_action_pressed("wheelie"),
+		"jump": Input.is_action_pressed("jump"),
 		"trick": trick,
+		"trick_hold": held,
+		"spin": spin if air else 0.0,
 		"pop": Input.is_action_just_pressed("pop"),
 	}
 
@@ -337,7 +348,8 @@ func _setup_input() -> void:
 	_add_action("brake", [KEY_LEFT, KEY_A])
 	_add_action("up", [KEY_UP, KEY_W])
 	_add_action("down", [KEY_DOWN, KEY_S])
-	_add_action("wheelie", [KEY_SPACE, KEY_SHIFT])
+	_add_action("wheelie", [KEY_SPACE])
+	_add_action("jump", [KEY_SHIFT, KEY_C])
 	_add_action("trick_1", [KEY_J])
 	_add_action("trick_2", [KEY_K])
 	_add_action("trick_3", [KEY_L])

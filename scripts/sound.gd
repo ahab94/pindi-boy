@@ -35,6 +35,12 @@ const EVENT_SOUNDS := {
 	"respawn": [["kick", -4.0, 0.0]],
 	"over": [["cheer", -3.0, 0.0]],
 	"keys": [["trombone", 0.0, 0.0]],
+	"hop": [["slide_up", -10.0, 0.0]],
+	"flip": [["ding2", -2.0, 0.0], ["cheer", -8.0, 0.05]],
+	"spin": [["whoosh", -3.0, 0.0], ["ding", -4.0, 0.05]],
+	"scene_on": [["dhol", 0.0, 0.0], ["cheer", -2.0, 0.1], ["pataakha", -6.0, 0.0]],
+	"too_low": [["fizzle", -8.0, 0.0]],
+	"sloppy": [["boing", -6.0, 0.0]],
 }
 const TRICK_SOUNDS := {"no_hands": "ding", "superman": "ding2", "seat_stand": "ding2", "selfie": "shutter"}
 

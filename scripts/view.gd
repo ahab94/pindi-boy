@@ -40,6 +40,8 @@ var _size := Vector2(1280, 720)
 var _tint := Color(1, 1, 1)
 var _last_throw := -9.0
 var _rng := RandomNumberGenerator.new()
+var _joints := {}            # Shani's current (blended) pose
+var _squash := 0.0           # landing squash, decays fast
 
 
 const PX_PER_M := 64.0       # texture pixels per world metre
@@ -215,6 +217,7 @@ func _read_events() -> void:
 						_spawn(Vector3(x + 1.5, d, 1.0), Vector3(randf_range(-3, 6), randf_range(-1.5, 1.5), randf_range(2, 7)),
 							1.6, [Color(1, 0.85, 0.1), Color(1, 1, 0.95), Color(0.92, 0.68, 0.3)][k % 3], 0.12, "fruit")
 			"land":
+				_squash = 0.22
 				shake = maxf(shake, 3.0)
 				for k in 8:
 					_spawn(Vector3(x + 0.3, d, 0.05), Vector3(randf_range(-3, 1), randf_range(-0.8, 0.8), randf_range(0.2, 1.2)),
@@ -849,13 +852,54 @@ func _bike() -> void:
 			var len := (float(ride.v) - 10.0) * 0.25
 			draw_line(P(x - 0.6 - len, d, h + ly), P(x - 0.6, d, h + ly), Color(1, 1, 1, 0.35), 2.0)
 	var wobble := sin(t * 40.0) * 0.06 if float(ride.wobble_t) > 0.0 else 0.0
-	art.pen(P(x, d, h), S * HERO, deg_to_rad(float(ride.pitch)) + wobble)
-	var pose := String(ride.trick) if ride.trick != "" else "ride"
+	# Flips turn the whole bike; a spin squashes it sideways and mirrors it
+	# halfway round; a lane change leans it a touch.
+	var lean := -float(ride.vd) * 0.025
+	var angle := deg_to_rad(float(ride.pitch) + float(ride.flip)) + wobble + lean
+	var spin_k := cos(deg_to_rad(float(ride.spin)))
+	var mirror := (1.0 if spin_k >= 0.0 else -1.0) * maxf(absf(spin_k), 0.12)
+	# Flip about the bike's middle (around the rider), not the back tyre.
+	var mid := Vector2(0.65, 0.8)
+	var pivot_shift := Vector2.ZERO
+	if absf(float(ride.flip)) > 0.5:
+		var a := deg_to_rad(float(ride.flip))
+		var rotated := Vector2(mid.x * cos(a) - mid.y * sin(a), mid.x * sin(a) + mid.y * cos(a))
+		pivot_shift = mid - rotated
+	art.pen(P(x + pivot_shift.x * HERO, d, h + pivot_shift.y * HERO), S * HERO, angle, mirror)
+	_squash = maxf(0.0, _squash - get_process_delta_time() * 2.0)
+	art.sy = 1.0 - _squash - float(ride.jump_charge) * 0.12
+	if float(ride.scene_t) > 0.0:
+		_flames(t)
+	var pose := String(ride.trick) if ride.trick != "" else ("crouch" if float(ride.jump_charge) > 0.05 else "ride")
+	_blend_pose(pose)
 	art.shani_back(pose)
 	art.bike(kind, wheel, t, true, float(ride.v))
 	art.shani_front(pose, t, float(ride.v), "yell" if ride.trick != "" or ride.airborne else "")
+	art.pose_override = {}
 	art.rot = 0.0
+	art.sy = 1.0
 	_bike_meters(x, d, h, t)
+
+
+## Shani's joints ease toward the pose he's going for, so tricks flow
+## instead of snapping.
+func _blend_pose(target: String) -> void:
+	var want: Dictionary = Art.POSES.get(target, Art.POSES.ride)
+	if _joints.is_empty():
+		_joints = want.duplicate()
+	var f := 1.0 - exp(-get_process_delta_time() * 18.0)
+	for k in want:
+		_joints[k] = (_joints[k] as Vector2).lerp(want[k], f)
+	art.pose_override = _joints
+
+
+## SCENE ON: the silencer spits fire.
+func _flames(t: float) -> void:
+	for i in 3:
+		var flick := 0.6 + 0.4 * sin(t * 40.0 + i * 2.1)
+		var len := (0.35 + i * 0.12) * flick
+		art.poly([Vector2(-0.38, 0.36), Vector2(-0.38 - len, 0.41 + sin(t * 30.0 + i) * 0.04), Vector2(-0.38, 0.47)],
+			[Color(1, 0.85, 0.2, 0.9), Color(1, 0.5, 0.1, 0.85), Color(1, 0.2, 0.1, 0.7)][i])
 
 
 ## The wheelie gauge rides with the bike (eyes stay on the road), plus a
