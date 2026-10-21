@@ -39,6 +39,11 @@ var ride
 var racing := false
 var show_touch := false
 var clean := false            # footage: no tip banner, no key hints
+var level_index := 0
+var _hint_action := ""        # the touch button the coach is pointing at
+const World := preload("res://scripts/world.gd")
+const TRICK_BTN := {"no_hands": ["NO HANDS", "J", "trick_1"], "superman": ["SUPERMAN", "K", "trick_2"],
+	"seat_stand": ["SEAT STAND", "L", "trick_3"], "selfie": ["SELFIE", "U", "trick_4"]}
 var progress := {}            # level -> {views, stars}
 var _shown_views := 0.0
 var _chat: Array = []         # [handle, text, time]
@@ -183,9 +188,7 @@ func _play_hud() -> void:
 		var grace: float = 1.0 - float(ride.chain_idle) / Ride.CHAIN_GRACE
 		if ride.chain_idle > 0.0:
 			draw_rect(Rect2(cx - 80, cy + 50, 160 * grace, 5), Color(1, 0.88, 0.25, 0.9))
-	# The wheelie gauge, bottom left.
-	if ride.pitch > 2.0 or ride.airborne:
-		_gauge(Vector2(90, sz.y - (330 if portrait and show_touch else 70)), float(ride.pitch))
+	# (The wheelie gauge rides with the bike now: view.gd _bike_meters.)
 	# The warden behind.
 	if not ride.warden.is_empty():
 		var gap: float = ride.x - float(ride.warden.x)
@@ -205,6 +208,18 @@ func _play_hud() -> void:
 	_text(Vector2(pbx + pw + 8, pby + 8), "GHAR", 14, Color(1, 1, 1), 4)
 	# The live chat.
 	_chat_box(portrait)
+	# The coach.
+	var hint := _coach()
+	_hint_action = String(hint[1]) if hint.size() > 1 else ""
+	if hint.size() > 0 and not clean and ride.t > 0.6:
+		var pulse := 1.0 + 0.06 * sin(ride.t * 10.0)
+		var hy := sz.y * (0.6 if not portrait else 0.47)
+		var fs := int((30 if not portrait else 38) * pulse)
+		var msg := String(hint[0])
+		var tw := _font().get_string_size(msg, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		draw_rect(Rect2(sz.x / 2.0 - tw / 2.0 - 18, hy - fs - 8, tw + 36, fs + 24), Color(0.08, 0.04, 0.12, 0.78))
+		draw_rect(Rect2(sz.x / 2.0 - tw / 2.0 - 18, hy - fs - 8, tw + 36, fs + 24), Color(1, 0.85, 0.2, 0.9), false, 3.0)
+		draw_string(_font(), Vector2(sz.x / 2.0 - tw / 2.0, hy), msg, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1, 0.95, 0.6))
 	# Trick keys.
 	if not show_touch and not clean:
 		var keys: Array = []
@@ -239,6 +254,97 @@ static func touch_words(tip: String) -> String:
 	for sw in swaps:
 		tip = tip.replace(sw[0], sw[1])
 	return tip
+
+
+## "tap NO HANDS" on a phone, "press J" on a keyboard.
+func _press(trick: String) -> String:
+	var b: Array = TRICK_BTN[trick]
+	return ("tap " + String(b[0])) if show_touch else ("press " + String(b[1]))
+
+
+## What to tell the player right now, and which touch button to light up.
+## Everything on the first four rides; after that only the air-trick prompt
+## (for tricks not done twice yet this ride) and the LET GO warning.
+func _coach() -> Array:
+	var r = ride
+	if r.result != "" or float(r.crash_t) > 0.0 or float(r.t) < 0.0:
+		return []
+	var early := level_index <= 3
+	var unlocked: Array = r.unlocked
+	# In the air: the best trick that still fits.
+	if r.airborne and String(r.trick) == "" and not unlocked.is_empty():
+		var left: float = r.air_left()
+		var best := ""
+		for k in unlocked:
+			if float(r.TRICKS[k].time) * 0.75 <= left and (best == "" or int(r.TRICKS[k].views) > int(r.TRICKS[best].views)):
+				best = k
+		if best != "" and (early or _done_count(best) < 2):
+			return ["NOW! " + _press(best).capitalize(), TRICK_BTN[best][2]]
+		return []
+	if r.airborne:
+		return []
+	# On one wheel.
+	if float(r.pitch) > 8.0:
+		if r.assist_aim() > r.LET_GO_AT - 8.0 or float(r.pitch) > r.LET_GO_AT - 4.0:
+			return ["LET GO of WHEELIE!", "wheelie"]
+		if early and float(r.wheelie_time) > 1.2 and String(r.trick) == "" and "no_hands" in unlocked and _done_count("no_hands") < 2:
+			return ["Steady! " + _press("no_hands").capitalize() + " for a trick", "trick_1"]
+		return []
+	if not early:
+		return []
+	# Something coming in this lane?
+	var look: float = maxf(float(r.v), 6.0) * 1.7
+	for o in r.hazards:
+		var dx: float = float(o.x) - float(r.x)
+		if dx < 0.5 or dx > look:
+			continue
+		var k: Dictionary = World.KINDS[o.kind]
+		var kind := String(o.kind)
+		var in_lane: bool = absf(float(o.d) - float(r.d)) < float(k.dep) / 2.0 + 0.5
+		if kind == "pigeons" and r.level.get("pop", false) and o.state == "" and dx < 14.0:
+			return ["Pigeons! " + ("Tap PATAAKHA" if show_touch else "Press X: PATAAKHA"), "pop"]
+		if not in_lane:
+			continue
+		match kind:
+			"breaker", "ramp":
+				var name := "RAMP" if kind == "ramp" else "SPEED BREAKER"
+				if unlocked.is_empty():
+					return [name + " ahead: hold on!", ""]
+				return [name + " ahead: jump, then " + _press(unlocked[mini(unlocked.size() - 1, 1)]) + " in the air", ""]
+			"pothole":
+				return ["Pothole! Hold WHEELIE to hop over it", "wheelie"]
+			"puddle":
+				return ["Puddle! Wheelie through it", "wheelie"]
+			_:
+				if k.solid and _on_road(o):
+					return ["Move lane! " + ("UP / DOWN" if show_touch else "Up / Down keys"), "up" if float(r.d) < 6.0 else "down"]
+	if not r.warden.is_empty() and float(r.x) - float(r.warden.x) < 15.0:
+		return ["Warden behind! Drop the wheelie and go!", ""]
+	for c in r.chappals:
+		if not c.landed and absf(float(c.td) - float(r.d)) < 1.2:
+			return ["Ammi's chappal! Change lane!", "up" if float(r.d) < 6.0 else "down"]
+	if float(r.pot) > 0.0 and float(r.chain_idle) > 0.0 and level_index == 0:
+		return ["Both wheels down = combo banked", ""]
+	if level_index == 0 and float(r.t) > 4.0 and float(r.pitch) < 2.0 and _done_count("wheelie") < 3:
+		return ["Hold WHEELIE to pop the front up", "wheelie"]
+	return []
+
+
+func _on_road(o: Dictionary) -> bool:
+	return float(o.d) > -0.3 and float(o.d) < World.ROAD_W + 0.3
+
+
+## How many times the player has done something this ride (from the events).
+func _done_count(what: String) -> int:
+	var n := 0
+	for e in ride.events:
+		var ev := String(e[1])
+		if what == "wheelie":
+			if ev == "front_down":
+				n += 1
+		elif ev == "trick " + what:
+			n += 1
+	return n
 
 
 func _wrap_banner(msg: String, centre: Vector2, width: float, a: float) -> void:
@@ -361,7 +467,11 @@ func _touch_buttons() -> void:
 			rad = r * 1.25
 		elif dd[0] == "menu_btn":
 			rad = r * 0.5
-		var pressed := Input.is_action_pressed(String(dd[0]))
+		var pressed: bool = dd[0] != "menu_btn" and Input.is_action_pressed(String(dd[0]))
+		if dd[0] == _hint_action:
+			var glow := 0.5 + 0.5 * sin(ride.t * 12.0)
+			draw_circle(dd[1], rad + 10.0, Color(1, 0.85, 0.2, 0.25 + 0.3 * glow))
+			draw_arc(dd[1], rad + 6.0, 0, TAU, 40, Color(1, 0.85, 0.2, 0.9), 5.0)
 		draw_circle(dd[1], rad, Color(0, 0, 0, 0.25))
 		draw_circle(dd[1], rad, Color(1, 1, 1, 0.4 if pressed else 0.16))
 		draw_arc(dd[1], rad, 0, TAU, 32, Color(1, 1, 1, 0.75), 3.0)
@@ -525,9 +635,34 @@ func show_menu() -> void:
 		b.disabled = not open
 		if open:
 			first = b
+	var how := _button(box, "HOW TO PLAY", func() -> void: show_how_to())
+	how.add_theme_color_override("font_color", Color(1, 0.85, 0.2))
 	var keys := "Right/D gas · Left/A brake · Up/Down change lane · SPACE wheelie (hold, feather it)\nJ K L U tricks · X pataakha · R retry · Esc menu"
 	if show_touch:
 		keys = "Left thumb: lanes and brake. Right thumb: hold WHEELIE and feather it.\nTricks in the air or on the back wheel. The bike speeds up by itself."
 	_label(box, keys, 15, Color(0.85, 0.85, 0.95))
 	if first:
 		first.grab_focus.call_deferred()
+
+
+## The rules in one screen, in words a first-timer gets.
+func show_how_to() -> void:
+	var box := _new_panel()
+	_label(box, "HOW TO PLAY", 44, Color(1, 0.85, 0.2))
+	var wheelie := "HOLD the WHEELIE button" if show_touch else "HOLD SPACE"
+	var lanes := "UP / DOWN buttons" if show_touch else "Up / Down keys"
+	var t := "tap" if show_touch else "press"
+	var lines := [
+		"VIEWS are your score. Reach the target before you get home.",
+		"WHEELIE: %s. The bike balances itself, but the needle by the bike creeps toward red. LET GO before red or you loop it." % wheelie,
+		"COMBOS: every stunt adds views and the multiplier. Different stunts = bigger multiplier. Both wheels down for a moment = combo banked.",
+		"TRICKS: %s NO HANDS, SUPERMAN, SEAT STAND or SELFIE while in the air (speed breakers, ramps) or on one wheel. Bigger tricks need bigger air: if there isn't enough, it says TOO LOW." % t,
+		"Land before a trick finishes = SLOPPY (combo lost). Hit traffic = crash. 3 crashes and Abbu takes the keys.",
+		"Change lane with the %s. Wheelie over potholes. PATAAKHA scares pigeons and goats." % lanes,
+	]
+	if show_touch:
+		lines.append("The bike speeds up by itself. BRAKE to slow down. II pauses.")
+	for ln in lines:
+		_label(box, ln, 19, Color(1, 1, 1), false)
+	var back := _button(box, "Got it", func() -> void: show_menu())
+	back.grab_focus.call_deferred()

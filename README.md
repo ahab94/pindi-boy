@@ -15,7 +15,7 @@ A side-on stunt rider with an angled view, in the spirit of the old excite-style
 | Right / D | Gas |
 | Left / A | Brake (the rear brake also drops a wheelie) |
 | Up, Down / W, S | Change lane |
-| Space | Wheelie: hold to lift, let go to drop, feather it to keep the needle in the green |
+| Space | Wheelie: hold it and the bike balances itself; let go before the needle by the bike reaches red |
 | J K L U | Tricks: NO HANDS, SUPERMAN, SEAT STAND, SELFIE (in the air or on the back wheel) |
 | X | PATAAKHA: the "tuned" silencer backfires |
 | R / Esc / Enter | Retry / menu / next ride |
@@ -34,7 +34,9 @@ A side-on stunt rider with an angled view, in the spirit of the old excite-style
 - The combo stays alive while the front wheel is up or you're in the air. A second on two wheels **banks** it: pot × multiplier.
 - A crash loses the combo. You still get +100 views, because fail videos sell.
 - **Abbu's patience:** three crashes and he takes the keys.
-- A wheelie squirms more the longer you hold it, so long wheelies are earned.
+- Holding WHEELIE balances the bike for you, but the held angle creeps up after a couple of seconds. Let go before the red on the gauge by the bike, or you loop it.
+- Landing before a trick finishes is a SLOPPY landing (you lose the combo). If there isn't enough air for a trick, it's refused with TOO LOW.
+- On the first rides a coach tells you what to do next, and the matching touch button glows.
 
 ## The rides
 | # | Ride | What's new |
@@ -65,5 +67,6 @@ Credits are in [CREDITS.md](CREDITS.md).
 
 ## Roadmap
 - [x] v0.1.0: 10 rides, mobile touch controls, bots and tests, synthesized Pothohari audio, 10 Shorts and a trailer
+- [x] v0.1.1: browser sound fixed, assisted wheelies, a gauge on the bike, forgiving tricks, a coach and a How to play page
 - [ ] Tune the feel from players' feedback
 - [ ] More people and vehicle detail in the 2D art

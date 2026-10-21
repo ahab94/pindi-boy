@@ -90,8 +90,10 @@ func _wheelie() -> void:
 func _loop_out() -> void:
 	var r := ride_on(bare())
 	run(r, 1.0, {"gas": true})
-	run(r, 3.0, {"gas": true, "lift": true})
-	check(r.crashes == 1 and r.crash_cause == "looped", "holding the wheelie forever loops it")
+	run(r, 2.0, {"gas": true, "lift": true})
+	check(r.pitch > 30.0 and r.pitch < 60.0 and r.crashes == 0, "holding WHEELIE holds a steady wheelie (pitch %.0f)" % r.pitch)
+	run(r, 7.0, {"gas": true, "lift": true})
+	check(r.crashes == 1 and r.crash_cause == "looped", "holding it far too long still loops it")
 	check(r.views == Ride.FAIL_VIEWS, "a fail is still worth a few views")
 
 
@@ -119,7 +121,8 @@ func _trick_bail() -> void:
 			inp.trick = "superman"
 			pressed = true
 		r.step(1.0 / 60.0, inp)
-	check(r.crashes == 1 and r.crash_cause == "bailed", "landing mid-trick is a bail")
+	check(r.crashes == 0, "a trick too big for the air never crashes you")
+	check(r.events.any(func(e) -> bool: return String(e[1]).begins_with("too_low") or e[1] == "sloppy"), "it's refused (TOO LOW) or a sloppy landing")
 	# Locked tricks do nothing.
 	var r2 := ride_on(bare({"placed": [[60.0, "breaker", 1]], "tricks": []}))
 	for i in 600:

@@ -16,6 +16,14 @@ const LOOP_OUT := 95.0         # past this the bike flips over backwards
 const SWEET := Vector2(30, 65) # the wheelie angles that score double
 const LAT_ACCEL := 14.0
 const WOBBLE_GROWTH := 30.0    # deg/s^2 of extra squirm per second of wheelie
+## Holding WHEELIE is assisted: the bike holds this angle by itself...
+const ASSIST_AIM := 46.0
+## ...but after ASSIST_EASY seconds the held angle creeps up by ASSIST_CREEP
+## degrees a second, toward the red and a loop-out. So: hold, watch the
+## needle by the bike, let go before red. (Tapping to feather still works.)
+const ASSIST_EASY := 2.5
+const ASSIST_CREEP := 12.0
+const LET_GO_AT := 72.0         # the "LET GO!" warning angle
 const WHEELIE_RATE := 40.0     # views per second on the back wheel (double in the green)
 const CHAIN_GRACE := 1.0       # seconds on two wheels before the combo is banked
 const MAX_MULT := 10
@@ -226,9 +234,14 @@ func _step_bike(dt: float, input: Dictionary) -> void:
 	# Tricks.
 	var want_trick := String(input.get("trick", ""))
 	if want_trick != "" and trick == "" and want_trick in unlocked and (airborne or pitch > 15.0):
-		trick = want_trick
-		trick_t = 0.0
-		log_event("trick_start %s" % trick)
+		if airborne and air_left() < float(TRICKS[want_trick].time) * 0.75:
+			# Not enough air to finish it: refuse, and say why.
+			log_event("too_low %s" % want_trick)
+			popups.append({"x": 0.6, "d": d, "h": 2.8, "text": "TOO LOW!", "t0": t, "col": Color(1, 0.6, 0.3), "rel": true})
+		else:
+			trick = want_trick
+			trick_t = 0.0
+			log_event("trick_start %s" % trick)
 	if trick != "":
 		trick_t += dt
 		if trick_t >= float(TRICKS[trick].time):
@@ -247,7 +260,7 @@ func _step_pitch(dt: float, input: Dictionary) -> void:
 		air_time += dt
 		vh -= GRAVITY * dt
 		h += vh * dt
-		pitch = clampf(pitch + (70.0 if lift else -55.0) * dt, 0.0, 80.0)
+		pitch = clampf(pitch + (50.0 if lift else -55.0) * dt, 0.0, 45.0)
 		if h <= 0.0:
 			_land()
 		_prev_lift = lift
@@ -257,7 +270,9 @@ func _step_pitch(dt: float, input: Dictionary) -> void:
 	_prev_lift = lift
 	var acc := -float(bike.grav) * sin(deg_to_rad(float(bike.balance) - pitch))
 	if lift and v > 4.0:
-		acc += float(bike.lift) + (40.0 if input.get("gas", false) else 0.0)
+		# Held: steer the angle toward the (creeping) aim, like a rider
+		# working the clutch for you.
+		acc = 60.0 * (assist_aim() - pitch) - 14.0 * pitch_v
 	if input.get("brake", false):
 		acc -= 250.0         # the rear brake brings the front down: a real trick
 	acc -= float(bike.damp) * pitch_v
@@ -274,8 +289,7 @@ func _step_pitch(dt: float, input: Dictionary) -> void:
 		pitch = 0.0
 		pitch_v = 0.0
 		if trick != "":
-			_crash("faceplant")
-			return
+			_sloppy()
 	if pitch > LOOP_OUT:
 		_crash("looped")
 		return
@@ -316,8 +330,11 @@ func _land() -> void:
 	vh = 0.0
 	airborne = false
 	if trick != "":
-		_crash("bailed")
-		return
+		if trick_t >= float(TRICKS[trick].time) * 0.7:
+			_element("JUST MADE IT", 100)
+			_trick_done()
+		else:
+			_sloppy()
 	if pitch > 60.0:
 		_crash("backflop")
 		return
@@ -331,6 +348,28 @@ func _land() -> void:
 		if air_time > 0.7:
 			_element("CLEAN LANDING", 60)
 	pot += 80.0 * air_time
+
+
+## The wheelie angle a held WHEELIE aims for right now.
+func assist_aim() -> float:
+	return ASSIST_AIM + maxf(0.0, wheelie_time - ASSIST_EASY) * ASSIST_CREEP
+
+
+## Seconds of air left before the wheels touch down.
+func air_left() -> float:
+	if not airborne:
+		return 0.0
+	return (vh + sqrt(maxf(0.0, vh * vh + 2.0 * GRAVITY * h))) / GRAVITY
+
+
+## A trick that didn't finish: no crash, but the combo's gone and the bike
+## wobbles. ("You can't land on no hands, pai.")
+func _sloppy() -> void:
+	trick = ""
+	wobble_t = 0.6
+	v *= 0.85
+	popups.append({"x": 0.6, "d": d, "h": 2.6, "text": "SLOPPY!", "t0": t, "col": Color(1, 0.55, 0.3), "rel": true})
+	_lose_combo("sloppy")
 
 
 func _trick_done() -> void:

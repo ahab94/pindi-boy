@@ -855,6 +855,37 @@ func _bike() -> void:
 	art.bike(kind, wheel, t, true, float(ride.v))
 	art.shani_front(pose, t, float(ride.v), "yell" if ride.trick != "" or ride.airborne else "")
 	art.rot = 0.0
+	_bike_meters(x, d, h, t)
+
+
+## The wheelie gauge rides with the bike (eyes stay on the road), plus a
+## ring that fills while a trick is being done.
+func _bike_meters(x: float, d: float, h: float, t: float) -> void:
+	var font := ThemeDB.fallback_font
+	var pitch: float = ride.pitch
+	var c := P(x - 1.1, d, h + 1.5)
+	var r := 30.0 if not portrait else 34.0
+	if pitch > 2.0 and not ride.airborne:
+		draw_arc(c, r, PI, TAU, 24, Color(0, 0, 0, 0.55), 12.0)
+		draw_arc(c, r, PI + deg_to_rad(Ride.SWEET.x), PI + deg_to_rad(Ride.SWEET.y), 12, Color(0.3, 0.95, 0.4), 9.0)
+		draw_arc(c, r, PI + deg_to_rad(Ride.LET_GO_AT), TAU, 8, Color(1, 0.25, 0.2), 9.0)
+		var a := PI + deg_to_rad(clampf(pitch, 0.0, 180.0))
+		draw_line(c, c + Vector2(cos(a), sin(a)) * (r + 6.0), Color(1, 1, 1), 4.0)
+		draw_circle(c, 5, Color(1, 1, 1))
+		var danger: bool = pitch > Ride.LET_GO_AT - 4.0 or ride.assist_aim() > Ride.LET_GO_AT - 4.0
+		if danger and fmod(t, 0.3) < 0.2:
+			var msg := "LET GO!"
+			var fs := 30 if not portrait else 34
+			var tw := font.get_string_size(msg, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+			draw_string_outline(font, c + Vector2(-tw / 2.0, -r - 14.0), msg, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 7, Color(0.1, 0, 0))
+			draw_string(font, c + Vector2(-tw / 2.0, -r - 14.0), msg, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1, 0.3, 0.25))
+	if String(ride.trick) != "":
+		var tr: Dictionary = Ride.TRICKS[ride.trick]
+		var f: float = clampf(float(ride.trick_t) / float(tr.time), 0.0, 1.0)
+		var rc := P(x + 0.7, d, h + 1.3)
+		var rr := 62.0 if not portrait else 70.0
+		draw_arc(rc, rr, 0, TAU, 40, Color(0, 0, 0, 0.35), 8.0)
+		draw_arc(rc, rr, -PI / 2.0, -PI / 2.0 + TAU * f, 40, Color(1, 0.9, 0.3), 8.0)
 
 
 ## The fall: Shani cartwheels down the road while the bike skids on its side.

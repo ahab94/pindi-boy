@@ -109,6 +109,7 @@ func start_level(i: int) -> void:
 			ride.warden.x = ride.x - 22.0
 	_attach(ride)
 	hud.racing = true
+	hud.level_index = level_index
 	hud.hide_panels()
 	bot = null
 	if _flags.has("autopilot") or _flags.has("rookie"):
