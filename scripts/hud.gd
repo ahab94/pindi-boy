@@ -19,9 +19,9 @@ const HANDLES := ["pindi_munda_07", "chai_wala_99", "saddar_ka_sher", "rani.pk",
 	"tuition_sir", "gamer_jani", "nosy_aunty", "bobby_fresh", "waqas.official", "silencer_king",
 	"doodh_wala", "abbu_ka_phone", "raja_bazaar_reporter", "pigeon_rights_pk", "warden_ki_beti"]
 const CHAT := {
-	"bank": ["bhai kamaal", "LEGEND", "pindi boys >>>", "W", "scene on hai!!", "sub kar diya", "ye banda alag hai", "again again"],
-	"crash": ["LOL", "F", "helmet kahan hai pai", "ammi ko bata diya", "HAHAHAHA", "bike ka kya kasoor tha", "replay pls", "clip it"],
-	"pop": ["silencer lol", "kaan phat gaye", "PATAAKHA", "uncle dar gaye", "mohalla jaag gaya"],
+	"bank": ["oye jakat!!", "ustaad ji kamaal", "sahi gal ae pai", "jakat banda ae", "bhai kamaal", "LEGEND", "pindi boys >>>", "W", "scene on hai!!", "sub kar diya", "ye banda alag hai", "again again"],
+	"crash": ["raja bazar jaso, wahan helmet milta", "ustaad gir gaya lol", "oye khotay", "LOL", "F", "helmet kahan hai pai", "ammi ko bata diya", "HAHAHAHA", "bike ka kya kasoor tha", "replay pls", "clip it"],
+	"pop": ["committee chowk tak awaaz gayi", "jakat silencer", "silencer lol", "kaan phat gaye", "PATAAKHA", "uncle dar gaye", "mohalla jaag gaya"],
 	"chalaan": ["CHALAAN lol", "warden sahab ON FIRE", "license hai bhi?", "abbu pay karein ge"],
 	"chappal": ["AMMI OP", "chappal never misses", "ammi aimbot", "run shani RUN"],
 	"no_hands": ["haath chhor diye?? pagal", "NO HANDS bro", "steering kis ke paas hai", "mummy dekh rahi hai?"],
@@ -32,12 +32,13 @@ const CHAT := {
 	"pigeons": ["kabootar bhaag gaye", "kabootar lol", "pigeon rights!!"],
 	"dulha": ["dulha bhai ka reaction", "shaadi crashers", "send to the family group"],
 	"over": ["OVER IT?!", "flying", "physics: ignored"],
-	"pass": ["VIRAL", "trending #1 in Pindi", "next video kab?"],
+	"pass": ["ustaad ji tusi great ho", "pindi da jakat", "VIRAL", "trending #1 in Pindi", "next video kab?"],
 }
 
 var ride
 var racing := false
 var show_touch := false
+var clean := false            # footage: no tip banner, no key hints
 var progress := {}            # level -> {views, stars}
 var _shown_views := 0.0
 var _chat: Array = []         # [handle, text, time]
@@ -203,7 +204,7 @@ func _play_hud() -> void:
 	# The live chat.
 	_chat_box(portrait)
 	# Trick keys.
-	if not show_touch:
+	if not show_touch and not clean:
 		var keys: Array = []
 		for k in ride.unlocked:
 			keys.append("[%s] %s" % [Ride.TRICKS[k].key, Ride.TRICKS[k].label])
@@ -218,7 +219,7 @@ func _play_hud() -> void:
 		_text(Vector2(sz.x / 2.0, sz.y * 0.42), str(n), 110, Color(1, 0.9, 0.3), 10, 1)
 	elif t < 0.8:
 		_text(Vector2(sz.x / 2.0, sz.y * 0.42), "CHALO!", 96, Color(0.4, 1, 0.5, 1.0 - t / 0.8), 10, 1)
-	if t < 4.5:
+	if t < 4.5 and not clean:
 		var a := clampf(4.5 - t, 0.0, 1.0)
 		var tip := String(ride.level.tip)
 		var ty := sz.y * (0.58 if not portrait else 0.18)

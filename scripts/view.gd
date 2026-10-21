@@ -31,6 +31,7 @@ var S := 46.0                # pixels per metre
 var cam_x := 0.0
 var oy := 600.0              # screen y of the near kerb at road level
 var portrait := false
+var zoom := 1.0              # footage: closer camera
 var shake := 0.0
 var particles: Array = []
 var _seen := 0
@@ -127,6 +128,7 @@ func _process(delta: float) -> void:
 	if ride == null:
 		return
 	_layout()
+	_apply_zoom()
 	_follow_camera(delta)
 	_read_events()
 	_step_particles(delta)
@@ -154,6 +156,12 @@ func _layout() -> void:
 
 ## Shani sits about a third of the way across, a little further left the
 ## faster he goes, so you see more of what's coming.
+func _apply_zoom() -> void:
+	S *= zoom
+	if zoom > 1.0:
+		oy += (_size.y - oy) * (zoom - 1.0) * 1.2
+
+
 func _follow_camera(delta: float) -> void:
 	var x: float = ride.x
 	var d: float = ride.d

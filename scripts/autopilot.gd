@@ -10,6 +10,11 @@ const World := preload("res://scripts/world.gd")
 const Ride := preload("res://scripts/ride.gd")
 
 var rookie := false
+## Footage direction (dev flags, see game.gd): "fail" = kind of hazard to
+## ride straight into, "loop_at" = time to hold a wheelie until it loops,
+## "long" = seconds to hold wheelies, "no_dodge" = ignore Ammi's chappals,
+## "dawdle" = let the warden catch up.
+var director := {}
 var lane_target := 4.5
 var _think := 0.0
 var _hold := 0.0             # the rookie's thumb: lift decisions stick for a moment
@@ -49,14 +54,43 @@ func drive(r, dt: float) -> Dictionary:
 		input.brake = true
 	# Boxed in under a chappal: change speed instead so it lands short.
 	for c in r.chappals:
-		if not c.landed and absf(float(c.td) - lane_target) < 1.0 and absf(float(c.td) - d) < 1.2 \
+		if not c.landed and not director.has("no_dodge") and absf(float(c.td) - lane_target) < 1.0 and absf(float(c.td) - d) < 1.2 \
 				and float(r.v) > float(r.bike.cruise) * 0.6:
 			input.gas = false
 			input.brake = true
 	input.lift = _wheelie(r, dt, danger)
 	input.trick = _trick(r)
 	input.pop = _pop(r)
+	if not director.is_empty():
+		_direct(r, input)
 	return input
+
+
+## Bad decisions on purpose, for the fail videos.
+func _direct(r, input: Dictionary) -> void:
+	var t: float = r.t
+	if director.has("fail") and t > float(director.get("fail_after", 0.0)) and float(r.safe_t) <= 0.0:
+		var kinds := String(director.fail).split("+")
+		for o in r.hazards:
+			var dx: float = float(o.x) - float(r.x)
+			if o.kind in kinds and dx > 1.0 and dx < 40.0 and r._on_road(o):
+				lane_target = float(o.d)
+				var err: float = lane_target - float(r.d)
+				input.lane = clampf(err * 1.6 - float(r.vd) * 0.3, -1.0, 1.0)
+				input.brake = false
+				input.gas = true
+				input.trick = ""
+				if dx < 12.0:
+					input.lift = false
+				break
+	if director.has("loop_at") and t > float(director.loop_at) and int(r.crashes) == 0:
+		input.lift = true
+		input.trick = ""
+	if director.has("dawdle") and not r.warden.is_empty() and float(r.warden.write_t) <= 0.0 \
+			and t > float(director.dawdle):
+		input.gas = false
+		input.brake = float(r.v) > 5.0
+		input.lift = false
 
 
 # ---------------------------------------------------------------- lanes
@@ -131,7 +165,7 @@ func _lane_cost(r, lane: float, max_t := INF, crawling := false) -> float:
 			if absf(float(o.d) - lane) < float(k.dep) / 2.0 + 0.4:
 				cost += 6.0 / (tt + 0.5)
 	for c in r.chappals:
-		if c.landed:
+		if c.landed or director.has("no_dodge"):
 			continue
 		var tl: float = float(c.t0) + Ride.CHAPPAL_FLIGHT - float(r.t)
 		if tl > max_t:
@@ -208,11 +242,11 @@ func _wheelie(r, dt: float, danger: bool) -> bool:
 	var want := not danger and not _danger_ahead(r, lane_target, 1.6)
 	if not r.warden.is_empty() and float(r.x) - float(r.warden.x) < 16.0:
 		want = false     # flat out, the warden is right there
-	if float(r.wheelie_time) > (_rookie_limit if rookie else 5.0):
+	if float(r.wheelie_time) > (_rookie_limit if rookie else float(director.get("long", 5.0))):
 		want = false     # the squirm keeps growing: quit while ahead
 	if rookie and float(r.pitch) < 2.0 and want and _rng.randf() > 0.03:
 		want = false     # a new player doesn't wheelie every chance they get
-	if not rookie and float(r.pot) * maxi(int(r.mult), 1) > 2500.0 and float(r.pitch) < 8.0:
+	if not rookie and not director.has("long") and float(r.pot) * maxi(int(r.mult), 1) > 2500.0 and float(r.pitch) < 8.0:
 		want = false     # bank a big combo before something goes wrong
 	if r.trick != "":
 		want = true      # don't let the front drop mid-trick

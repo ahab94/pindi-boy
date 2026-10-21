@@ -36,6 +36,8 @@ var _slowmo := 0              # frames of slow motion (only with --slowmo)
 var _sim_time := 0.0
 var _shot := 0
 var _flags := {}
+var _event_frames: Array = []
+var _ride_frame0 := 0
 
 
 func _ready() -> void:
@@ -67,6 +69,8 @@ func _ready() -> void:
 	add_child(layer)
 	hud = Hud.new()
 	hud.show_touch = DisplayServer.is_touchscreen_available() or _flags.has("touch")
+	hud.clean = _flags.has("clean")
+	view.zoom = float(_flags.get("zoom", 1.0))
 	hud.progress = progress
 	layer.add_child(hud)
 	hud.retry_pressed.connect(func() -> void: start_level(level_index))
@@ -94,7 +98,13 @@ func _fit_screen() -> void:
 func start_level(i: int) -> void:
 	level_index = clampi(i, 0, Levels.count() - 1)
 	ride = Ride.new()
-	ride.setup(Levels.get_level(level_index))
+	ride.setup(_level_data(level_index))
+	ride.no_keys = _flags.has("no-keys")
+	if _flags.has("start"):
+		# Footage: begin further down the road.
+		ride.x = float(_flags.start)
+		if not ride.warden.is_empty():
+			ride.warden.x = ride.x - 22.0
 	_attach(ride)
 	hud.racing = true
 	hud.hide_panels()
@@ -102,9 +112,32 @@ func start_level(i: int) -> void:
 	if _flags.has("autopilot") or _flags.has("rookie"):
 		bot = Autopilot.new()
 		bot.rookie = _flags.has("rookie")
+		for key in ["fail", "fail_after", "loop_at", "long", "no_dodge", "dawdle"]:
+			var flag: String = String(key).replace("_", "-")
+			if _flags.has(flag):
+				bot.director[key] = _flags[flag]
 	state = State.PLAYING
 	_end_timer = RESULT_DELAY
+	_event_frames.clear()
+	_ride_frame0 = Engine.get_frames_drawn()
 	sound.play_music("ride")
+
+
+## The level, with footage set pieces added by --place=x:kind:lane,...
+## (--only-placed drops the random scatter, for a clean stunt run).
+func _level_data(i: int) -> Dictionary:
+	var lvl: Dictionary = Levels.get_level(i).duplicate(true)
+	if _flags.has("only-placed"):
+		lvl.scatter = {}
+	if _flags.has("place"):
+		var placed: Array = lvl.get("placed", []).duplicate()
+		for item in String(_flags.place).split(","):
+			var parts := item.split(":")
+			placed.append([float(parts[0]), parts[1], int(parts[2]) if parts.size() > 2 else 1])
+		lvl.placed = placed
+	if _flags.has("tricks"):
+		lvl.tricks = Array(String(_flags.tricks).split("+"))
+	return lvl
 
 
 func _attach(r) -> void:
@@ -170,6 +203,9 @@ func _sounds(before: float) -> void:
 		var ev := String(ride.events[i][1])
 		sound.play_event(ev)
 		_juice(ev)
+		# Video time of the event: frames drawn since the ride began. Slow
+		# motion stretches ride time, so videos are cut by this instead.
+		_event_frames.append(Engine.get_frames_drawn() - _ride_frame0)
 	_heard = ride.events.size()
 	for mark in [-3.0, -2.0, -1.0]:
 		if before < mark + 0.001 and ride.t >= mark + 0.001 and mark > -3.0:
@@ -347,8 +383,10 @@ func _report(outcome: String) -> void:
 	if not _flags.has("exit-on-end"):
 		return
 	if _flags.has("log-events") and ride:
-		for e in ride.events:
-			print("EVENT t=%.2f %s" % [e[0], e[1]])
+		for i in ride.events.size():
+			var e: Array = ride.events[i]
+			var vid: float = float(_event_frames[i]) / 60.0 if i < _event_frames.size() else -1.0
+			print("EVENT t=%.2f v=%.3f %s" % [e[0], vid, e[1]])
 	print("RESULT level=%d %s views=%d target=%d stars=%d crashes=%d time=%.1f" % [level_index, outcome,
 		ride.views if ride else 0, int(ride.level.target) if ride else 0, ride.stars() if ride else 0,
 		ride.crashes if ride else 0, ride.t if ride else 0.0])

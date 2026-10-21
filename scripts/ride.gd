@@ -102,6 +102,7 @@ var wobble_t := 0.0
 var pop_t := 0.0
 var crashes := 0
 var unlocked: Array = []
+var no_keys := false         # footage: crashes never end the ride
 
 # Score.
 var views := 0
@@ -489,7 +490,7 @@ func _step_crash(dt: float) -> void:
 	vh = 0.0
 	vd = 0.0
 	if crash_t <= 0.0:
-		if crashes >= PATIENCE:
+		if crashes >= PATIENCE and not no_keys:
 			result = "keys"
 			finish_time = t
 			log_event("keys")
