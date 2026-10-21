@@ -28,8 +28,10 @@ common/max_physics_steps_per_frame=16
 
 [rendering]
 
+lights_and_shadows/directional_shadow/soft_shadow_filter_quality=3
+
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 textures/vram_compression/import_etc2_astc=true
 environment/defaults/default_clear_color=Color(0.99, 0.82, 0.35, 1)
-anti_aliasing/quality/msaa_2d=2
+anti_aliasing/quality/msaa_3d=2

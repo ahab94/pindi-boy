@@ -10,6 +10,7 @@ extends Node2D
 const Levels := preload("res://scripts/levels.gd")
 const Ride := preload("res://scripts/ride.gd")
 const View := preload("res://scripts/view.gd")
+const View3D := preload("res://scripts/view3d.gd")
 const Autopilot := preload("res://scripts/autopilot.gd")
 const Hud := preload("res://scripts/hud.gd")
 const Sound := preload("res://scripts/sound.gd")
@@ -48,7 +49,8 @@ func _ready() -> void:
 		get_window().size = Vector2i(720, 1280)
 	_fit_screen()
 	get_tree().root.size_changed.connect(_fit_screen)
-	view = View.new()
+	# The 3D street by default; --flat brings back the drawn 2D view.
+	view = View.new() if _flags.has("flat") else View3D.new()
 	add_child(view)
 	sound = Sound.new()
 	sound.music_on = not _flags.has("no-music")
